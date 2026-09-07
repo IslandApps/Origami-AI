@@ -50,6 +50,7 @@ export const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
   const [openaiEndpoint, setOpenaiEndpoint] = useState(currentSettings?.openaiEndpoint ?? '');
   const [openaiModel, setOpenaiModel] = useState(currentSettings?.openaiModel ?? '');
   const [openaiApiKey, setOpenaiApiKey] = useState(currentSettings?.openaiApiKey ?? '');
+  const [openaiDisableThinking, setOpenaiDisableThinking] = useState(currentSettings?.openaiDisableThinking !== false);
   const [useOpenAIOcr, setUseOpenAIOcr] = useState(currentSettings?.useOpenAIOcr ?? false);
   const [useOpenAIFixScript, setUseOpenAIFixScript] = useState(currentSettings?.useOpenAIFixScript ?? false);
   const [useOpenAIForSlideGen, setUseOpenAIForSlideGen] = useState(currentSettings?.useOpenAIForSlideGen ?? false);
@@ -364,6 +365,7 @@ export const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
       openaiEndpoint,
       openaiModel,
       openaiApiKey,
+      openaiDisableThinking,
       useOpenAIOcr,
       useOpenAIFixScript,
       useOpenAIForSlideGen,
@@ -1197,6 +1199,24 @@ export const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
                       onChange={(e) => setOpenaiApiKey(e.target.value)}
                       className="w-full px-4 py-3 rounded-xl bg-black/20 border border-white/10 text-white placeholder-white/30 focus:border-branding-primary focus:ring-1 focus:ring-branding-primary outline-none transition-all"
                     />
+                  </div>
+                </div>
+
+                <div className="flex items-start justify-between gap-4 p-4 rounded-xl bg-black/20 border border-white/10">
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <div className="text-xs font-bold text-white/70 uppercase tracking-widest flex items-center gap-2">
+                      Disable Thinking / Reasoning
+                    </div>
+                    <p className="text-[11px] text-white/50 leading-relaxed">Best-effort request to skip the model's reasoning step for faster, cheaper responses. Turn off if your provider rejects the request.</p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0 pt-0.5">
+                    <span className="text-[10px] font-bold text-white/60 uppercase">{openaiDisableThinking ? 'On' : 'Off'}</span>
+                    <button
+                      onClick={() => setOpenaiDisableThinking(!openaiDisableThinking)}
+                      className={`relative w-10 h-5 rounded-full transition-colors duration-300 shrink-0 ${openaiDisableThinking ? 'bg-emerald-500' : 'bg-white/10'}`}
+                    >
+                      <div className={`absolute top-1 left-1 w-3 h-3 rounded-full bg-white shadow-lg transform transition-transform duration-300 ${openaiDisableThinking ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
                   </div>
                 </div>
 

@@ -189,7 +189,8 @@ export async function renderPdfToImages(file: File): Promise<RenderedPage[]> {
               model: globalSettings.openaiModel || '',
               openaiEndpoint: globalSettings.openaiEndpoint,
               openaiModel: globalSettings.openaiModel,
-              openaiApiKey: globalSettings.openaiApiKey
+              openaiApiKey: globalSettings.openaiApiKey,
+              openaiDisableThinking: globalSettings.openaiDisableThinking !== false
             });
           } else {
             extractedText = await performOCR(canvas, i, numPages);

@@ -14,7 +14,6 @@ import orgIssueLogo from '../assets/images/orgissue.png';
 import SoftAurora from '../components/SoftAurora';
 import { Footer } from '../components/Footer';
 import { GlobalSettingsModal } from '../components/GlobalSettingsModal';
-import { MobileWarningModal } from '../components/MobileWarningModal';
 import { useModal } from '../context/ModalContext';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { triggerBlobDownload } from '../utils/downloadBlob';
@@ -726,8 +725,6 @@ export const IssueReporterPage: React.FC = () => {
           initialTab="general"
         />
       )}
-
-      <MobileWarningModal />
 
       {/* Recording indicator pill */}
       {isRecording && (

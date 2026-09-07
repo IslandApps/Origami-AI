@@ -3,7 +3,6 @@ import { AudioLines, Download, Gauge, Loader2, Mic, RotateCcw, Sparkles } from '
 import backgroundImage from '../assets/images/background.jpg';
 import { Footer } from '../components/Footer';
 import { GlobalSettingsModal } from '../components/GlobalSettingsModal';
-import { MobileWarningModal } from '../components/MobileWarningModal';
 import { PageHeader } from '../components/PageHeader';
 import { DownloadBlockedModal } from '../components/DownloadBlockedModal';
 import { TTSAudioPlayer } from '../components/TTSAudioPlayer';
@@ -625,8 +624,6 @@ export const VoiceStudioPage: React.FC = () => {
           initialTab="tts"
         />
       )}
-
-      <MobileWarningModal />
     </div>
   );
 };

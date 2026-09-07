@@ -3,7 +3,6 @@ import { BrainCircuit, MessageSquarePlus, PanelLeft, Plus, Trash2 } from 'lucide
 import backgroundImage from '../assets/images/background.png';
 import { Footer } from '../components/Footer';
 import { GlobalSettingsModal } from '../components/GlobalSettingsModal';
-import { MobileWarningModal } from '../components/MobileWarningModal';
 import { ModelSelectorModal } from '../components/ModelSelectorModal';
 import { PageHeader } from '../components/PageHeader';
 import { WebGPUInstructionsModal } from '../components/WebGPUInstructionsModal';
@@ -629,6 +628,7 @@ export const AssistantPage: React.FC = () => {
               apiKey: globalSettings.openaiApiKey ?? '',
               baseUrl: globalSettings.openaiEndpoint ?? '',
               model: globalSettings.openaiModel ?? '',
+              openaiDisableThinking: globalSettings.openaiDisableThinking !== false,
             },
             chatMessages,
             { temperature: 0.7, maxTokens: 768, signal: controller.signal },
@@ -959,8 +959,6 @@ export const AssistantPage: React.FC = () => {
           void handleApplyAssistantModel(modelId);
         }}
       />
-
-      <MobileWarningModal />
     </div>
   );
 };

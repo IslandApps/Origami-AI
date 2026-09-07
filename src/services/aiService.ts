@@ -9,6 +9,7 @@ export interface LLMSettings {
   openaiEndpoint?: string;
   openaiModel?: string;
   openaiApiKey?: string;
+  openaiDisableThinking?: boolean;
   useOpenAIOcr?: boolean;
   useOpenAIFixScript?: boolean;
 }
@@ -313,6 +314,15 @@ const toChatCompletionsEndpoint = (baseUrl: string): string => {
 
 const normalizeModelForRequest = (model: string): string => model.replace(/^models\//, '');
 
+// Best-effort flags for OpenAI-compatible servers that support turning off a
+// reasoning model's "thinking" step (Qwen3/vLLM's enable_thinking, OpenRouter's
+// reasoning_effort, etc). Unsupported providers generally ignore unknown fields.
+const REASONING_DISABLE_FIELDS: Record<string, unknown> = {
+  reasoning_effort: 'none',
+  enable_thinking: false,
+  chat_template_kwargs: { enable_thinking: false },
+};
+
 export const postChatCompletions = async (settings: LLMSettings, messages: ChatMessage[], temperature = 0.3, modelOverride?: string, signal?: AbortSignal, maxTokens?: number): Promise<string> => {
   const endpoint = toChatCompletionsEndpoint(settings.baseUrl);
   const normalizedModel = normalizeModelForRequest((modelOverride || settings.model || '').trim());
@@ -357,6 +367,7 @@ export const postChatCompletions = async (settings: LLMSettings, messages: ChatM
       messages,
       temperature,
       ...(maxTokens ? { max_tokens: maxTokens } : {}),
+      ...(settings.openaiDisableThinking ? REASONING_DISABLE_FIELDS : {}),
     }),
     signal,
   });
@@ -382,7 +393,7 @@ export interface CustomApiStreamOptions {
  * own), so unlike postChatCompletions there is no server-proxy fallback here.
  */
 export async function* streamCustomApiChatResponse(
-  settings: Pick<LLMSettings, 'apiKey' | 'baseUrl' | 'model'>,
+  settings: Pick<LLMSettings, 'apiKey' | 'baseUrl' | 'model' | 'openaiDisableThinking'>,
   messages: WebLLMChatMessage[],
   options: CustomApiStreamOptions = {},
 ): AsyncGenerator<string, void, void> {
@@ -401,6 +412,7 @@ export async function* streamCustomApiChatResponse(
       messages,
       temperature,
       ...(maxTokens ? { max_tokens: maxTokens } : {}),
+      ...(settings.openaiDisableThinking ? REASONING_DISABLE_FIELDS : {}),
       stream: true,
     }),
     signal,
@@ -1253,9 +1265,10 @@ STRICT CONSTRAINTS:
       const customSettings: LLMSettings = {
         baseUrl: settings.openaiEndpoint,
         model: settings.openaiModel,
-        apiKey: settings.openaiApiKey
+        apiKey: settings.openaiApiKey,
+        openaiDisableThinking: settings.openaiDisableThinking
       };
-      
+
       console.log("[AI Service] Sending request to custom OpenAI endpoint for script fixing...");
       const textContent = await postChatCompletions(customSettings, [
         { role: 'system', content: systemPrompt },
@@ -1332,7 +1345,8 @@ Follow these rules strictly:
   const customSettings: LLMSettings = {
     baseUrl: settings.openaiEndpoint,
     model: settings.openaiModel,
-    apiKey: settings.openaiApiKey
+    apiKey: settings.openaiApiKey,
+    openaiDisableThinking: settings.openaiDisableThinking
   };
 
   const endpoint = toChatCompletionsEndpoint(customSettings.baseUrl);
@@ -1357,7 +1371,8 @@ Follow these rules strictly:
         ]
       }
     ],
-    temperature: 0.1
+    temperature: 0.1,
+    ...(customSettings.openaiDisableThinking ? REASONING_DISABLE_FIELDS : {})
   };
 
   const response = await fetch(endpoint, {

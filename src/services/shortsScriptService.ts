@@ -259,6 +259,29 @@ const STOP_WORDS = new Set([
   'there', 'here', 'more', 'most', 'some', 'all', 'one', 'two', 'also', 'even', 'over', 'after',
 ]);
 
+/**
+ * Words that carry a narration line's actual subject matter, for comparing a candidate image
+ * prompt against the line it's meant to depict. Plurals are folded to their singular so
+ * "creature"/"creatures" still count as the same token on both sides.
+ */
+const substantiveTokens = (text: string): Set<string> => {
+  const tokens = new Set<string>();
+  const words = text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
+    .split(/\s+/)
+    .filter((w) => w.length > 0);
+
+  for (const word of words) {
+    const isNumeric = /^\d+$/.test(word);
+    if (!isNumeric && (word.length <= 2 || STOP_WORDS.has(word))) continue;
+    tokens.add(word);
+    if (word.length > 4 && word.endsWith('s')) tokens.add(word.slice(0, -1));
+  }
+
+  return tokens;
+};
+
 const NUMBER_WORDS_PATTERN = 'one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\\d+';
 
 const FILLER_PHRASES = [
@@ -291,13 +314,25 @@ export const deriveImagePrompt = (narration: string, topic: string, req: VisualP
     cleaned = cleaned.replace(pattern, '').replace(/^[,\s-]+/, '');
   }
 
-  // Extract meaningful visual keywords
+  // Extract meaningful visual keywords, favoring named entities and numbers — the details
+  // that actually anchor an image to its topic — over whichever words happen to come first.
   const words = cleaned
     .replace(/[^\p{L}\p{N}\s-]/gu, '')
     .split(/\s+/)
     .filter((w) => w.length > 2 && !STOP_WORDS.has(w.toLowerCase()));
 
-  const keyDetail = words.slice(0, 8).join(' ');
+  const seen = new Set<string>();
+  const priority: string[] = [];
+  const rest: string[] = [];
+  for (const word of words) {
+    const key = word.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const isPriority = /^\d+$/.test(word) || key in WORD_NUMBERS || /^[A-Z]/.test(word);
+    (isPriority ? priority : rest).push(word);
+  }
+
+  const keyDetail = [...priority, ...rest].slice(0, 8).join(' ');
   const anchor = topic.trim().replace(/[^\p{L}\p{N}\s-]/gu, '').slice(0, 50);
 
   const subject = keyDetail
@@ -556,27 +591,40 @@ Output strictly ${sceneCount} numbered lines, one line per scene (e.g. "1. ...",
 const IMAGE_PROMPT_SYSTEM = `You turn voiceover narration lines into text-to-image prompts for video scenes.
 
 Rules:
-- Output ONE image prompt per line matching the input lines in order.
+- Output ONE image prompt per line, prefixed with its scene number matching the input (e.g. "1. <prompt>", "2. <prompt>").
 - Each prompt must describe a single concrete visual still image: visible subject, action/pose, setting, lighting, and camera angle.
 - Anchor directly on the most concrete physical subject named in that voiceover line.
+- If the line names a specific person, place, date, number, or object, that exact name or number must appear in the prompt — never substitute a generic paraphrase for it.
 - Describe ONLY what is visually seen in the frame.
 - NO text, words, subtitles, signage, speech bubbles, or logos in the image.
-- NO meta-chatter, numbering, or markdown formatting. Output one prompt per line.
+- NO meta-chatter or markdown formatting beyond the required scene-number prefix.
 
 Examples:
 Narration: "Deep inside the Mariana Trench, bizarre bioluminescent creatures thrive in extreme pressure."
-Prompt: glowing translucent deep-sea viperfish in pitch-black ocean water, bioluminescent organs shining cyan, detailed scales, close-up macro shot, dark cinematic lighting
+Prompt: 1. glowing translucent deep-sea viperfish in the Mariana Trench, pitch-black ocean water, bioluminescent organs shining cyan, detailed scales, close-up macro shot, dark cinematic lighting
 
 Narration: "In 1969, Apollo 11 touched down on the lunar surface, marking history."
-Prompt: astronaut in white Apollo spacesuit stepping onto powdery grey lunar surface, deep boot print in moon dust, harsh bright sunlight, black space with earth in distant background, low angle shot`;
+Prompt: 2. Apollo 11 astronaut in white spacesuit stepping onto powdery grey lunar surface in 1969, deep boot print in moon dust, harsh bright sunlight, black space with earth in distant background, low angle shot`;
 
 const RENDERS_TEXT = /["“”]|\btext\s+(?:reading|that\s+says|saying)\b|\bword[s]?\s+(?:reading|that\s+says)\b|\bwritten\s+(?:on|across)\b/i;
+
+/** Below this many substantive words, a narration line (e.g. a short INTRO hook) doesn't carry
+ * enough topic-specific content to fairly require overlap from the image prompt. */
+const MIN_NARRATION_TOKENS_FOR_OVERLAP = 3;
 
 const isUsablePrompt = (candidate: string, narrationLine: string): boolean => {
   const trimmed = candidate.trim();
   if (trimmed.length < 12) return false;
   if (trimmed.toLowerCase() === narrationLine.trim().toLowerCase()) return false;
   if (RENDERS_TEXT.test(trimmed)) return false;
+
+  const narrationTokens = substantiveTokens(narrationLine);
+  if (narrationTokens.size >= MIN_NARRATION_TOKENS_FOR_OVERLAP) {
+    const candidateTokens = substantiveTokens(trimmed);
+    const overlaps = [...narrationTokens].some((token) => candidateTokens.has(token));
+    if (!overlaps) return false;
+  }
+
   return true;
 };
 
@@ -586,6 +634,29 @@ const resolveImagePrompt = (candidate: string | undefined, narrationLine: string
     return composeVisualPrompt(candidate, req);
   }
   return deriveImagePrompt(narrationLine, req.topic, req);
+};
+
+/**
+ * Parses "N. <prompt>" lines into a scene-number-keyed map rather than a flat array, so one
+ * extra, missing, or merged line from the model only costs that scene instead of desyncing
+ * every pairing after it (a line with no leading number falls in after the last seen number,
+ * mirroring the tracking parseCombinedAttempt uses for the same reason).
+ */
+const parseNumberedCandidates = (raw: string): Map<number, string> => {
+  const lines = stripWrapper(raw)
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  const byIndex = new Map<number, string>();
+  let currentScene = 0;
+  for (const line of lines) {
+    const match = line.match(/^\s*(\d+)\s*[.):]\s*(.+)$/);
+    currentScene = match ? Number(match[1]) : currentScene + 1;
+    const text = stripLineDecoration(match ? match[2] : line);
+    if (text.length > 0) byIndex.set(currentScene, text);
+  }
+  return byIndex;
 };
 
 const generateImagePrompts = async (
@@ -602,19 +673,16 @@ Write exactly ${narrationLines.length} visual image prompts, one per line, match
 
 ${script}`;
 
-  let candidates: string[] = [];
+  let candidates = new Map<number, string>();
   try {
     const raw = await runPrompt(IMAGE_PROMPT_SYSTEM, user, 0.7, opts, tokenBudget(narrationLines.length, IMAGE_PROMPT_TOKENS_PER_SCENE));
-    candidates = stripWrapper(raw)
-      .split(/\r?\n/)
-      .map(stripLineDecoration)
-      .filter((l) => l.length > 0);
+    candidates = parseNumberedCandidates(raw);
   } catch (e) {
     if (opts.signal?.aborted) throw e;
     console.warn('[Shorts] Image prompt pass failed; using intelligent fallback.', e);
   }
 
-  return narrationLines.map((line, i) => resolveImagePrompt(candidates[i], line, req));
+  return narrationLines.map((line, i) => resolveImagePrompt(candidates.get(i + 1), line, req));
 };
 
 // --- combined narration + visual prompt generation -----------------------------
@@ -642,6 +710,7 @@ Narration rules:
 Image prompt rules:
 - Each IMAGE line describes a single concrete visual still image: visible subject, action/pose, setting, lighting, and camera angle.
 - Anchor directly on the most concrete physical subject named in that scene's narration.
+- If the narration names a specific person, place, date, number, or object, that exact name or number must appear in the image prompt — never substitute a generic paraphrase for it.
 - Describe ONLY what is visually seen in the frame.
 - NO text, words, subtitles, signage, speech bubbles, or logos in the image.
 

@@ -23,7 +23,6 @@ import backgroundImage from '../assets/images/background.jpg';
 import { Footer } from '../components/Footer';
 import { PageHeader } from '../components/PageHeader';
 import { GlobalSettingsModal } from '../components/GlobalSettingsModal';
-import { MobileWarningModal } from '../components/MobileWarningModal';
 import { WebGPUInstructionsModal } from '../components/WebGPUInstructionsModal';
 import { WebLLMLoadingModal } from '../components/WebLLMLoadingModal';
 import { RuntimeResourceModal } from '../components/RuntimeResourceModal';
@@ -574,10 +573,11 @@ export const ShortsPage: React.FC = () => {
         apiKey: globalSettings.openaiApiKey ?? '',
         baseUrl: globalSettings.openaiEndpoint ?? '',
         model: globalSettings.openaiModel ?? '',
+        openaiDisableThinking: globalSettings.openaiDisableThinking !== false,
       },
       signal,
     }),
-    [useOpenAI, globalSettings.webLlmModel, globalSettings.openaiApiKey, globalSettings.openaiEndpoint, globalSettings.openaiModel],
+    [useOpenAI, globalSettings.webLlmModel, globalSettings.openaiApiKey, globalSettings.openaiEndpoint, globalSettings.openaiModel, globalSettings.openaiDisableThinking],
   );
 
   // --- asset generation -------------------------------------------------------
@@ -1903,8 +1903,6 @@ export const ShortsPage: React.FC = () => {
         onDownload={handleDownload}
         onClose={() => setRenderPhase(null)}
       />
-
-      <MobileWarningModal />
 
       {/* Cloud Projects Modal */}
       {isCloudModalOpen && (

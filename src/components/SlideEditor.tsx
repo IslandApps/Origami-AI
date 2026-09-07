@@ -735,6 +735,7 @@ const SortableSlideItem = ({
         openaiEndpoint: globalSettings?.openaiEndpoint,
         openaiModel: globalSettings?.openaiModel,
         openaiApiKey: globalSettings?.openaiApiKey,
+        openaiDisableThinking: globalSettings?.openaiDisableThinking !== false,
         useOpenAIFixScript: globalSettings?.useOpenAIFixScript
       }, slide.script, globalSettings?.aiFixScriptSystemPrompt, globalSettings?.aiFixScriptContext);
 
@@ -754,6 +755,7 @@ const SortableSlideItem = ({
           openaiEndpoint: globalSettings?.openaiEndpoint,
           openaiModel: globalSettings?.openaiModel,
           openaiApiKey: globalSettings?.openaiApiKey,
+          openaiDisableThinking: globalSettings?.openaiDisableThinking !== false,
           useOpenAIFixScript: globalSettings?.useOpenAIFixScript
         }, slide.script, globalSettings?.aiFixScriptSystemPrompt, globalSettings?.aiFixScriptContext);
       }
@@ -2271,6 +2273,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
             openaiEndpoint: globalSettings?.openaiEndpoint,
             openaiModel: globalSettings?.openaiModel,
             openaiApiKey: globalSettings?.openaiApiKey,
+            openaiDisableThinking: globalSettings?.openaiDisableThinking !== false,
             useOpenAIFixScript: globalSettings?.useOpenAIFixScript
           }, slide.script, globalSettings?.aiFixScriptSystemPrompt, globalSettings?.aiFixScriptContext);
 
@@ -2287,6 +2290,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
               openaiEndpoint: globalSettings?.openaiEndpoint,
               openaiModel: globalSettings?.openaiModel,
               openaiApiKey: globalSettings?.openaiApiKey,
+              openaiDisableThinking: globalSettings?.openaiDisableThinking !== false,
               useOpenAIFixScript: globalSettings?.useOpenAIFixScript
             }, slide.script, globalSettings?.aiFixScriptSystemPrompt, globalSettings?.aiFixScriptContext);
           }

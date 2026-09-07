@@ -25,6 +25,17 @@
   --accent: #ff00c7;
 }
 
+/* Mobile: html is the actual scrolling root on many mobile browsers, so
+   overflow-x:hidden on body alone doesn't reliably stop edge-to-edge drag —
+   an element a few px wider than the viewport (e.g. a cramped header row)
+   can still be panned into view. Constrain both, and kill the horizontal
+   rubber-band/overscroll gesture outright. */
+html {
+  overflow-x: hidden;
+  max-width: 100%;
+  overscroll-behavior-x: none;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -42,6 +53,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   /* Mobile: prevent horizontal scroll */
   overflow-x: hidden;
+  overscroll-behavior-x: none;
+  max-width: 100%;
   width: 100%;
 }
 
@@ -588,4 +601,108 @@ input[type="text"], input[type="number"], input[type="url"], textarea, select {
 .fold-tab.focus-ring:focus-visible {
   outline: none;
   box-shadow: inset 0 0 0 2px rgba(0, 209, 255, 0.9);
+}
+
+/* ---------------------------------------------------------------------------
+   How-to-use guide
+   The five steps are one pipeline, so they hang off a single crease rather than
+   five unrelated coloured chips. The crease runs the fold axis top to bottom --
+   cold where the PDF you brought enters, ember where the rendered file leaves --
+   and is covered below the reading position, so how far down the crease you are
+   and how far through the pipeline you are are the same measurement. That
+   doubles as the only scroll cue on mobile, where the dialog is a full-bleed
+   sheet with no visible scrollbar.
+--------------------------------------------------------------------------- */
+.tutorial-dialog {
+  --tutorial-ink: #0b0b0d;
+  background-color: var(--tutorial-ink);
+}
+
+.tutorial-rail {
+  /* Centre of the 2.5rem numeral column the steps are laid out against. */
+  --tutorial-rail-x: 1.25rem;
+  position: relative;
+}
+
+.tutorial-rail::before,
+.tutorial-rail::after {
+  content: '';
+  position: absolute;
+  left: var(--tutorial-rail-x);
+  width: 1px;
+  transform: translateX(-0.5px);
+  pointer-events: none;
+}
+
+/* The axis itself, painted once at full strength across the whole column, so
+   the colour at any point depends on position in the pipeline and not on how
+   much has been read. */
+.tutorial-rail::before {
+  top: 0.35rem;
+  bottom: 0.35rem;
+  z-index: 0;
+  background-image: linear-gradient(
+    to bottom,
+    var(--fold-cold) 0%,
+    var(--fold-mid) 38%,
+    var(--fold-warm) 76%,
+    var(--ember) 100%
+  );
+}
+
+/* Everything past the reading position is covered rather than recoloured, which
+   keeps the two layers in register at any scroll offset. */
+.tutorial-rail::after {
+  top: calc(0.35rem + (100% - 0.7rem) * var(--tutorial-read, 0));
+  bottom: 0.35rem;
+  z-index: 1;
+  background-color: var(--tutorial-ink);
+  opacity: 0.72;
+  transition: top 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* The numerals sit on the crease and interrupt it, so each reads as a stop on
+   the line rather than a marker floating beside it. Painted above both rail
+   layers so the cover never dims a step that has not been reached yet. The
+   padding drops the numeral onto the heading's optical top: Unbounded set
+   leading-none starts at its box edge, while the heading beside it carries
+   half-leading that pushes its glyphs down a couple of pixels. */
+.tutorial-step-number {
+  position: relative;
+  z-index: 2;
+  padding-top: 2px;
+  background-color: var(--tutorial-ink);
+}
+
+/* The dialog clips its own corners, so an outline focus ring on the scroll
+   region -- the keyboard route to a guide too long to fit -- would be cut off
+   at the edge. Draw it inside the border box instead. */
+.tutorial-scroll:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(0, 209, 255, 0.55);
+}
+
+@keyframes tutorial-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tutorial-enter {
+  animation: tutorial-enter 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-rail::after {
+    transition: none;
+  }
+
+  .tutorial-enter {
+    animation: none;
+  }
 }

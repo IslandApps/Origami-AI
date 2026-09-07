@@ -26,6 +26,7 @@ export interface GlobalSettings {
   openaiEndpoint?: string;
   openaiModel?: string;
   openaiApiKey?: string;
+  openaiDisableThinking?: boolean;
   useOpenAIOcr?: boolean;
   useOpenAIFixScript?: boolean;
   useOpenAIForSlideGen?: boolean;

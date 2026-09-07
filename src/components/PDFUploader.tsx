@@ -228,15 +228,15 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({ onUploadComplete, onOp
 
   return (
     <div
-      className="w-full max-w-6xl mx-auto px-4 sm:px-0"
+      className="w-full max-w-6xl mx-auto"
       style={{ fontFamily: '"Roboto", "Inter", system-ui, -apple-system, sans-serif', perspective: '1200px' }}
     >
       {/* Header */}
-      <div className="mb-8 sm:mb-10 origami-unfold">
+      <div className="mb-7 sm:mb-10 origami-unfold">
         <span className="block text-[11px] font-mono uppercase tracking-[0.2em] text-white/35 mb-3">
           New project
         </span>
-        <h2 className="font-display text-3xl sm:text-4xl font-bold text-white mb-3 tracking-tight">
+        <h2 className="font-display text-[1.7rem] leading-tight sm:text-4xl font-bold text-white mb-3 tracking-tight">
           Let's get started
         </h2>
         <p className="text-sm sm:text-base text-white/55 max-w-md">
@@ -250,7 +250,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({ onUploadComplete, onOp
         className={cn(
           'fold-card origami-unfold group relative cursor-pointer overflow-hidden border transition-all duration-300',
           'bg-white/5 backdrop-blur-md border-white/10 shadow-xl hover:border-white/20 hover:bg-white/10',
-          'p-7 sm:p-10 flex flex-col sm:flex-row sm:items-center gap-6 sm:gap-10',
+          'p-6 sm:p-10 flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-10',
           isDragActive && 'border-cyan-400/40 bg-cyan-500/[0.08]'
         )}
         style={{
@@ -259,7 +259,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({ onUploadComplete, onOp
       >
         <input {...getInputProps()} />
 
-        <div className="shrink-0 flex items-center justify-center">
+        <div className="shrink-0 self-start sm:self-auto flex items-center justify-center">
           {isProcessing ? (
             <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-cyan-300 animate-spin" />
           ) : (
@@ -304,7 +304,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({ onUploadComplete, onOp
         {!isProcessing && (
           <div className="shrink-0 flex flex-col items-start sm:items-end gap-1.5">
             <div className={cn(
-              'inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border transition-all duration-300',
+              'inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border transition-all duration-300',
               isDragActive
                 ? 'bg-cyan-500/10 text-cyan-200 border-cyan-400/30'
                 : 'bg-white/5 text-white/70 border-white/15 group-hover:border-cyan-400/30 group-hover:text-cyan-200'
@@ -312,7 +312,8 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({ onUploadComplete, onOp
               Select PDF file
               <ArrowUpRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </div>
-            <span className="text-[11px] text-white/30">or drag &amp; drop</span>
+            {/* Drag & drop has no equivalent on touch, so the hint only earns its place on pointer devices. */}
+            <span className="hidden sm:block text-[11px] text-white/30">or drag &amp; drop</span>
           </div>
         )}
       </div>
@@ -341,7 +342,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({ onUploadComplete, onOp
                 if (e.key === 'Enter' || e.key === ' ') handleOptionActivate(opt);
               }}
               className={cn(
-                "fold-card origami-unfold group relative border bg-white/5 backdrop-blur-md p-7 sm:p-8 flex flex-col min-h-[210px] transition-all duration-300 shadow-xl",
+                "fold-card origami-unfold group relative border bg-white/5 backdrop-blur-md p-6 sm:p-8 flex flex-col min-h-[188px] sm:min-h-[210px] transition-all duration-300 shadow-xl",
                 opt.disabled
                   ? "border-white/5 cursor-not-allowed select-none opacity-80"
                   : "cursor-pointer border-white/10 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50"
@@ -376,7 +377,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({ onUploadComplete, onOp
               </p>
 
               <div className={cn(
-                'mt-auto inline-flex items-center gap-1.5 self-start text-xs font-semibold border px-3.5 py-2 transition-all duration-300 bg-white/5 text-white/60 border-white/10',
+                'mt-auto inline-flex items-center gap-1.5 self-start text-xs font-semibold border px-3.5 py-2.5 transition-all duration-300 bg-white/5 text-white/60 border-white/10',
                 opt.disabled ? '' : (isAmber ? 'group-hover:border-amber-400/30 group-hover:text-amber-200' : 'group-hover:border-cyan-400/30 group-hover:text-cyan-200')
               )}>
                 {opt.cta}

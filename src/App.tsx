@@ -28,7 +28,6 @@ import { useBackgroundDownload } from './context/BackgroundDownloadContext';
 import { NotificationProvider } from './components/NotificationProvider';
 import { DownloadBlockedModal } from './components/DownloadBlockedModal';
 import { initWebLLM, webLlmEvents, checkWebGPUSupport, getDefaultWebLlmModel, getWebLlmModelInfo } from './services/webLlmService';
-import { MobileWarningModal } from './components/MobileWarningModal';
 import { exportProjectArchive, importProjectArchive } from './services/projectArchiveService';
 import { SceneAlignmentPage } from './pages/SceneAlignmentPage';
 import { AssistantPage } from './pages/AssistantPage';
@@ -1704,8 +1703,6 @@ function MainApp() {
         />
       )}
 
-      {/* Mobile device warning */}
-      <MobileWarningModal />
 
       {/* Global Settings Modal */}
       {isSettingsOpen && (

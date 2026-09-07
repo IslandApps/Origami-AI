@@ -5,7 +5,6 @@ import { FileCog, Image as ImageIcon, Loader2, Music, Palette, Settings2, Shield
 import backgroundImage from '../assets/images/background.jpg';
 import { Footer } from '../components/Footer';
 import { GlobalSettingsModal } from '../components/GlobalSettingsModal';
-import { MobileWarningModal } from '../components/MobileWarningModal';
 import { PageHeader } from '../components/PageHeader';
 import { DownloadBlockedModal } from '../components/DownloadBlockedModal';
 import { ConverterDropzone } from '../components/converter/ConverterDropzone';
@@ -752,8 +751,6 @@ export const ConvertStudioPage: React.FC = () => {
           onSave={saveSettings}
         />
       )}
-
-      <MobileWarningModal />
     </div>
   );
 };
