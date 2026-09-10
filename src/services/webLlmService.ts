@@ -134,9 +134,9 @@ export const getSmallestModelByPrecision = (precision: ModelInfo['precision']): 
 };
 
 export const DEFAULT_WEB_LLM_MODEL_ID = "gemma-2-2b-it-q4f16_1-MLC";
-// Pinned to a capable small model rather than derived from getSmallestModelByPrecision,
-// so adding tiny models (e.g. SmolLM2-135M) doesn't silently weaken the no-shader-f16 fallback.
-export const DEFAULT_WEB_LLM_FALLBACK_MODEL_ID = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
+// Pinned to the same recommended family as DEFAULT_WEB_LLM_MODEL_ID (just the f32 build), so
+// devices without shader-f16 still default to Gemma 2 2B instead of silently landing on Llama.
+export const DEFAULT_WEB_LLM_FALLBACK_MODEL_ID = "gemma-2-2b-it-q4f32_1-MLC";
 
 // Gemma 2 2B is the recommended model everywhere, so precision switches stay on it
 // instead of dropping to whichever model happens to be smallest.

@@ -9,9 +9,18 @@ export interface ModalOptions {
   type?: ModalType;
 }
 
+export interface PromptOptions {
+  title?: string;
+  defaultValue?: string;
+  placeholder?: string;
+  confirmText?: string;
+  cancelText?: string;
+}
+
 interface ModalContextType {
   showAlert: (message: ReactNode, options?: ModalOptions) => Promise<void>;
   showConfirm: (message: ReactNode, options?: ModalOptions) => Promise<boolean>;
+  showPrompt: (message: ReactNode, options?: PromptOptions) => Promise<string | null>;
 }
 
 export const ModalContext = createContext<ModalContextType | undefined>(undefined);

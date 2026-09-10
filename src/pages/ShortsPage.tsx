@@ -225,10 +225,10 @@ const buildTitleCardScene = (title: string, project: ShortsProject): ShortsScene
 import {
   saveShortsProjectToCloud,
   loadShortsProjectFromCloud,
-  listShortsProjectsFromCloud
 } from '../services/cloudStorage';
 import { useAuth } from '../context/AuthContext';
-import { Cloud, CloudDownload, XCircle } from 'lucide-react';
+import { Cloud } from 'lucide-react';
+import { useSearchParams } from 'react-router';
 
 export const ShortsPage: React.FC = () => {
   usePageMeta({
@@ -238,12 +238,13 @@ export const ShortsPage: React.FC = () => {
     path: '/shorts',
   });
 
-  const { showAlert, showConfirm } = useModal();
+  const { showAlert, showConfirm, showPrompt } = useModal();
   const { user } = useAuth();
 
-  const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
-  const [cloudProjects, setCloudProjects] = useState<any[]>([]);
   const [isSavingToCloud, setIsSavingToCloud] = useState(false);
+  const [linkedCloudProjectId, setLinkedCloudProjectId] = useState<string | null>(null);
+  const pendingLibraryDownloadRef = useRef(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [project, setProject] = useState<ShortsProject>(() => createEmptyProject());
   const [stage, setStage] = useState<Stage>('compose');
@@ -296,55 +297,82 @@ export const ShortsPage: React.FC = () => {
     el.style.height = `${el.scrollHeight}px`;
   }, []);
 
-  const handleSaveToCloud = async () => {
+  const handleSaveToLibrary = async () => {
     if (!user) {
-      showAlert('Please sign in to save to the cloud.', { type: 'error' });
+      showAlert('Please sign in to save to your Library.', { type: 'error' });
       return;
     }
+    if (projectRef.current.scenes.length === 0) {
+      showAlert('Nothing to save yet — generate a short first.', { type: 'warning' });
+      return;
+    }
+    const current = projectRef.current;
+    const defaultTitle = current.title || current.topic || 'Untitled Short';
+    const title = await showPrompt('Name this short so you can find it later in your Library.', {
+      title: linkedCloudProjectId ? 'Update Library entry' : 'Save to Library',
+      defaultValue: defaultTitle,
+      confirmText: 'Save',
+    });
+    if (title === null) return;
     setIsSavingToCloud(true);
     try {
-      const projectId = Date.now().toString();
-      const pData = await toPersistedProject(projectRef.current);
-      await saveShortsProjectToCloud(user.uid, projectId, pData);
-      showAlert('Project saved to cloud successfully!', { type: 'info' });
+      const projectId = linkedCloudProjectId ?? Date.now().toString();
+      const toSave = { ...projectRef.current, title };
+      setProject(toSave);
+      const pData = toPersistedProject(toSave);
+      const result = await saveShortsProjectToCloud(user.uid, projectId, pData);
+      setLinkedCloudProjectId(result.projectId);
+      showAlert('Saved to Library!', { type: 'success' });
     } catch (e: any) {
       console.error(e);
-      showAlert('Failed to save to cloud: ' + e.message, { type: 'error' });
+      showAlert('Failed to save to Library: ' + e.message, { type: 'error' });
     } finally {
       setIsSavingToCloud(false);
     }
   };
 
-  const handleLoadFromCloud = async () => {
+  // Handles /shorts?libraryProjectId=<id>[&libraryAction=download] navigated to from the Library page.
+  useEffect(() => {
+    const libraryProjectId = searchParams.get('libraryProjectId');
+    if (!libraryProjectId) return;
     if (!user) {
-      showAlert('Please sign in to load from the cloud.', { type: 'error' });
+      setSearchParams({}, { replace: true });
       return;
     }
-    try {
-      const projects = await listShortsProjectsFromCloud(user.uid);
-      setCloudProjects(projects.sort((a, b) => b.updatedAt - a.updatedAt));
-      setIsCloudModalOpen(true);
-    } catch (e: any) {
-      console.error(e);
-      showAlert('Failed to list cloud projects: ' + e.message, { type: 'error' });
-    }
-  };
+    const action = searchParams.get('libraryAction');
 
-  const confirmLoadCloudProject = async (projectId: string) => {
-    if (!user) return;
-    try {
-      setIsCloudModalOpen(false);
-      const loadedData = await loadShortsProjectFromCloud(user.uid, projectId);
-      if (loadedData) {
+    (async () => {
+      if (projectRef.current.scenes.length > 0) {
+        const proceed = await showConfirm(
+          'Opening this short from your Library will replace your current unsaved draft. Continue?',
+          { type: 'warning', title: 'Replace current draft?' },
+        );
+        if (!proceed) {
+          setSearchParams({}, { replace: true });
+          return;
+        }
+      }
+      try {
+        const loadedData = await loadShortsProjectFromCloud(user.uid, libraryProjectId);
+        if (!loadedData) {
+          showAlert('Project not found — it may have been deleted.', { type: 'error' });
+          return;
+        }
+        revokeProjectUrls(projectRef.current);
         setProject(fromPersistedProject(loadedData));
         setStage(loadedData.scenes.length > 0 ? 'storyboard' : 'compose');
-        showAlert('Project loaded from cloud!', { type: 'info' });
+        setLinkedCloudProjectId(libraryProjectId);
+        if (action === 'download') pendingLibraryDownloadRef.current = true;
+      } catch (e: any) {
+        console.error(e);
+        showAlert('Failed to load project: ' + e.message, { type: 'error' });
+      } finally {
+        setSearchParams({}, { replace: true });
       }
-    } catch (e: any) {
-      console.error(e);
-      showAlert('Failed to load project: ' + e.message, { type: 'error' });
-    }
-  };
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, user]);
+
   useEffect(() => {
     adjustTitleHeight();
   }, [project.title, adjustTitleHeight]);
@@ -1260,6 +1288,7 @@ export const ShortsPage: React.FC = () => {
       }),
     );
     setStage('compose');
+    setLinkedCloudProjectId(null);
   }, [showConfirm]);
 
   // --- music ------------------------------------------------------------------
@@ -1357,6 +1386,24 @@ export const ShortsPage: React.FC = () => {
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
   }, [renderedBlob, fileName]);
+
+  // Fires the existing render+download flow once a Library "Download" load has landed in state.
+  const autoDownloadArmedRef = useRef(false);
+  useEffect(() => {
+    if (pendingLibraryDownloadRef.current && project.scenes.length > 0) {
+      pendingLibraryDownloadRef.current = false;
+      autoDownloadArmedRef.current = true;
+      void handleRender();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project]);
+
+  useEffect(() => {
+    if (autoDownloadArmedRef.current && renderPhase === 'done' && renderedBlob) {
+      autoDownloadArmedRef.current = false;
+      handleDownload();
+    }
+  }, [renderPhase, renderedBlob, handleDownload]);
 
   // Guard against losing an in-flight render to an accidental reload.
   useEffect(() => {
@@ -1484,20 +1531,12 @@ export const ShortsPage: React.FC = () => {
         actionMenuContent={(closeMenu) => (
           <>
             <button
-              onClick={() => { handleSaveToCloud(); closeMenu(); }}
+              onClick={() => { handleSaveToLibrary(); closeMenu(); }}
               disabled={!user || isSavingToCloud || project.scenes.length === 0}
               className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50"
-              title={!user ? 'Sign in to save to cloud' : ''}
+              title={!user ? 'Sign in to save to your library' : ''}
             >
-              <Cloud className="w-4 h-4" /> {isSavingToCloud ? 'Saving to Cloud...' : 'Save to Cloud'}
-            </button>
-            <button
-              onClick={() => { handleLoadFromCloud(); closeMenu(); }}
-              disabled={!user}
-              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50"
-              title={!user ? 'Sign in to load from cloud' : ''}
-            >
-              <CloudDownload className="w-4 h-4" /> Load from Cloud
+              <Cloud className="w-4 h-4" /> {isSavingToCloud ? 'Saving to Library...' : linkedCloudProjectId ? 'Update Library Entry' : 'Save to Library'}
             </button>
             {project.scenes.length > 0 && <div className="my-1 h-px bg-white/10" />}
             {project.scenes.length > 0 && (
@@ -1904,40 +1943,6 @@ export const ShortsPage: React.FC = () => {
         onClose={() => setRenderPhase(null)}
       />
 
-      {/* Cloud Projects Modal */}
-      {isCloudModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl max-h-[80vh]">
-            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-slate-800/50">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2"><CloudDownload className="w-5 h-5"/> Cloud Projects</h2>
-              <button
-                onClick={() => setIsCloudModalOpen(false)}
-                className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <XCircle className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-4 overflow-y-auto">
-              {cloudProjects.length === 0 ? (
-                <p className="text-white/50 text-center py-8">No saved projects found in the cloud.</p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {cloudProjects.map(p => (
-                    <button
-                      key={p.projectId}
-                      onClick={() => confirmLoadCloudProject(p.projectId)}
-                      className="flex flex-col text-left p-3 rounded-lg bg-black/20 hover:bg-white/10 border border-white/5 transition-all group"
-                    >
-                      <span className="text-white font-medium group-hover:text-cyan-400 transition-colors">{p.topic || 'Untitled Short'}</span>
-                      <span className="text-xs text-white/40">{new Date(p.updatedAt).toLocaleString()} • {p.scenes?.length || 0} scenes</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import { db, storage } from '../config/firebase';
-import { collection, doc, setDoc, getDocs, getDoc, deleteDoc, query, limit } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import type { SlideData } from '../components/SlideEditor';
+import { collection, doc, setDoc, getDocs, getDoc, deleteDoc, updateDoc, query, limit } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject, listAll } from 'firebase/storage';
+import type { SlideData, MusicSettings } from '../components/SlideEditor';
 import type { PersistedShortsProject } from './storage';
 
 /**
@@ -19,7 +19,33 @@ async function uploadBlob(path: string, blob: Blob | undefined): Promise<string 
  */
 const SLIDE_ASSET_FIELDS = ['dataUrl', 'mediaUrl', 'audioUrl'] as const;
 
-export async function savePdfProjectToCloud(userId: string, projectId: string, slides: SlideData[], title: string = 'My Presentation') {
+/**
+ * Recursively deletes everything under a Storage path prefix. `listAll` on an
+ * empty/missing prefix resolves to empty arrays rather than throwing, so this
+ * is a safe no-op for a project that never uploaded any binary asset.
+ */
+async function deleteStoragePrefix(prefix: string): Promise<void> {
+  const dirRef = ref(storage, prefix);
+  const res = await listAll(dirRef);
+  await Promise.all(res.items.map((item) => deleteObject(item).catch((e) => {
+    if (e?.code !== 'storage/object-not-found') throw e;
+  })));
+  await Promise.all(res.prefixes.map((sub) => deleteStoragePrefix(sub.fullPath)));
+}
+
+export function guessPdfProjectTitle(slides: SlideData[]): string {
+  const firstScript = slides[0]?.script?.trim();
+  if (!firstScript) return 'Untitled Presentation';
+  return firstScript.length > 40 ? firstScript.slice(0, 40) + '...' : firstScript;
+}
+
+export async function savePdfProjectToCloud(
+  userId: string,
+  projectId: string,
+  slides: SlideData[],
+  title: string = 'My Presentation',
+  musicSettings?: MusicSettings | null,
+): Promise<{ projectId: string; updatedAt: number }> {
   const projectRef = doc(db, 'users', userId, 'pdf_projects', projectId);
 
   const processedSlides = await Promise.all(slides.map(async (slide, idx) => {
@@ -44,19 +70,48 @@ export async function savePdfProjectToCloud(userId: string, projectId: string, s
     return newSlide;
   }));
 
+  let processedMusic: Omit<MusicSettings, 'blob'> | null = null;
+  if (musicSettings && (musicSettings.blob || musicSettings.url)) {
+    let uploadUrl: string | null = null;
+    if (musicSettings.blob) {
+      uploadUrl = await uploadBlob(`users/${userId}/pdf_projects/${projectId}/music`, musicSettings.blob);
+    } else if (musicSettings.url?.startsWith('blob:')) {
+      try {
+        const blob = await (await fetch(musicSettings.url)).blob();
+        uploadUrl = await uploadBlob(`users/${userId}/pdf_projects/${projectId}/music`, blob);
+      } catch (e) {
+        console.warn('Failed to upload project music', e);
+      }
+    }
+    processedMusic = {
+      volume: musicSettings.volume,
+      loop: musicSettings.loop,
+      title: musicSettings.title,
+      url: uploadUrl ?? (musicSettings.url && !musicSettings.url.startsWith('blob:') ? musicSettings.url : undefined),
+    };
+  }
+
+  const updatedAt = Date.now();
   await setDoc(projectRef, {
     projectId,
     title,
     slides: processedSlides,
-    updatedAt: Date.now()
+    musicSettings: processedMusic,
+    updatedAt,
   });
+  return { projectId, updatedAt };
 }
 
-export async function loadPdfProjectFromCloud(userId: string, projectId: string): Promise<SlideData[] | null> {
+export async function loadPdfProjectFromCloud(userId: string, projectId: string): Promise<{ slides: SlideData[]; title: string; musicSettings: MusicSettings | null } | null> {
   const projectRef = doc(db, 'users', userId, 'pdf_projects', projectId);
   const snap = await getDoc(projectRef);
   if (!snap.exists()) return null;
-  return snap.data().slides as SlideData[];
+  const data = snap.data();
+  return {
+    slides: data.slides as SlideData[],
+    title: (data.title as string) || 'Untitled Presentation',
+    musicSettings: (data.musicSettings as MusicSettings) ?? null,
+  };
 }
 
 export async function listPdfProjectsFromCloud(userId: string) {
@@ -66,9 +121,18 @@ export async function listPdfProjectsFromCloud(userId: string) {
   return snap.docs.map(doc => doc.data());
 }
 
-export async function saveShortsProjectToCloud(userId: string, projectId: string, project: PersistedShortsProject) {
+export async function deletePdfProjectFromCloud(userId: string, projectId: string): Promise<void> {
+  await deleteStoragePrefix(`users/${userId}/pdf_projects/${projectId}`);
+  await deleteDoc(doc(db, 'users', userId, 'pdf_projects', projectId));
+}
+
+export async function renamePdfProjectInCloud(userId: string, projectId: string, title: string): Promise<void> {
+  await updateDoc(doc(db, 'users', userId, 'pdf_projects', projectId), { title, updatedAt: Date.now() });
+}
+
+export async function saveShortsProjectToCloud(userId: string, projectId: string, project: PersistedShortsProject): Promise<{ projectId: string; updatedAt: number }> {
   const projectRef = doc(db, 'users', userId, 'shorts_projects', projectId);
-  
+
   const processedProject = { ...project, scenes: [...project.scenes] };
 
   // Upload music
@@ -93,11 +157,13 @@ export async function saveShortsProjectToCloud(userId: string, projectId: string
     processedProject.scenes[i] = scene;
   }
 
+  const updatedAt = Date.now();
   await setDoc(projectRef, {
     ...processedProject,
     projectId,
-    updatedAt: Date.now()
+    updatedAt,
   });
+  return { projectId, updatedAt };
 }
 
 export async function listShortsProjectsFromCloud(userId: string) {
@@ -135,4 +201,13 @@ export async function loadShortsProjectFromCloud(userId: string, projectId: stri
   }
   
   return data as PersistedShortsProject;
+}
+
+export async function deleteShortsProjectFromCloud(userId: string, projectId: string): Promise<void> {
+  await deleteStoragePrefix(`users/${userId}/shorts_projects/${projectId}`);
+  await deleteDoc(doc(db, 'users', userId, 'shorts_projects', projectId));
+}
+
+export async function renameShortsProjectInCloud(userId: string, projectId: string, title: string): Promise<void> {
+  await updateDoc(doc(db, 'users', userId, 'shorts_projects', projectId), { title, updatedAt: Date.now() });
 }

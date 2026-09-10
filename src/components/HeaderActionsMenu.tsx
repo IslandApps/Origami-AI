@@ -1,7 +1,7 @@
 import { setSyncedPreference } from '../services/preferences';
 import React, { useState } from 'react';
 import type { ReactNode } from 'react';
-import { AudioLines, BookOpen, Bot, Clapperboard, FileCog, Film, Settings, User } from 'lucide-react';
+import { AudioLines, BookOpen, Bot, Clapperboard, FileCog, Film, LibraryBig, Settings, User } from 'lucide-react';
 import { useLocation } from 'react-router';
 import { TransitionNavLink, useTransitionNavigate } from './TransitionLink';
 import { useAuth } from '../context/AuthContext';
@@ -118,6 +118,13 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
               {user && (
                 <>
                   <div className="my-1 h-px bg-white/10" />
+                  <TransitionNavLink
+                    to="/library"
+                    onClick={closeMenu}
+                    className={({ isActive }) => `${menuItemClassName} ${isActive ? 'bg-cyan-400/15 text-cyan-100' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}
+                  >
+                    <LibraryBig className="h-4 w-4" /> Library
+                  </TransitionNavLink>
                   <TransitionNavLink
                     to="/account"
                     onClick={closeMenu}

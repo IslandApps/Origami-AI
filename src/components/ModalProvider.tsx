@@ -1,7 +1,9 @@
 
 import React, { useState, useCallback, type ReactNode } from 'react';
 import { Modal, type ModalType } from './Modal';
+import { PromptModal } from './PromptModal';
 import { ModalContext } from '../context/ModalContext';
+import type { PromptOptions } from '../context/ModalContext';
 
 export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [modalState, setModalState] = useState<{
@@ -54,6 +56,46 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     });
   }, []);
 
+  const [promptState, setPromptState] = useState<{
+    isOpen: boolean;
+    message: ReactNode;
+    title?: string;
+    defaultValue?: string;
+    placeholder?: string;
+    confirmText?: string;
+    cancelText?: string;
+    resolve?: (value: string | null) => void;
+  }>({
+    isOpen: false,
+    message: '',
+  });
+
+  const showPrompt = useCallback((message: ReactNode, options?: PromptOptions) => {
+    return new Promise<string | null>((resolve) => {
+      setPromptState({
+        isOpen: true,
+        message,
+        title: options?.title,
+        defaultValue: options?.defaultValue,
+        placeholder: options?.placeholder,
+        confirmText: options?.confirmText || 'Save',
+        cancelText: options?.cancelText || 'Cancel',
+        resolve: (value: string | null) => {
+          setPromptState(prev => ({ ...prev, isOpen: false }));
+          resolve(value);
+        }
+      });
+    });
+  }, []);
+
+  const handlePromptConfirm = (value: string) => {
+    promptState.resolve?.(value);
+  };
+
+  const handlePromptCancel = () => {
+    promptState.resolve?.(null);
+  };
+
   const handleConfirm = () => {
     if (modalState.resolve) {
       if (modalState.isConfirmation) {
@@ -76,7 +118,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   return (
-    <ModalContext.Provider value={{ showAlert, showConfirm }}>
+    <ModalContext.Provider value={{ showAlert, showConfirm, showPrompt }}>
       {children}
       <Modal
         isOpen={modalState.isOpen}
@@ -87,6 +129,17 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         cancelText={modalState.cancelText}
         onConfirm={handleConfirm}
         onCancel={handleCancel}
+      />
+      <PromptModal
+        isOpen={promptState.isOpen}
+        title={promptState.title}
+        message={promptState.message}
+        defaultValue={promptState.defaultValue}
+        placeholder={promptState.placeholder}
+        confirmText={promptState.confirmText}
+        cancelText={promptState.cancelText}
+        onConfirm={handlePromptConfirm}
+        onCancel={handlePromptCancel}
       />
     </ModalContext.Provider>
   );

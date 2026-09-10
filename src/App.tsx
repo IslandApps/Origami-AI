@@ -45,8 +45,10 @@ import { RouteTransition } from './components/RouteTransition';
 import chromeExtensionZip from './assets/extension/chrome-extension.zip?url';
 
 import { useAuth } from './context/AuthContext';
-import { savePdfProjectToCloud, loadPdfProjectFromCloud, listPdfProjectsFromCloud } from './services/cloudStorage';
-import { Cloud, CloudDownload } from 'lucide-react';
+import { savePdfProjectToCloud, loadPdfProjectFromCloud, guessPdfProjectTitle } from './services/cloudStorage';
+import { Cloud } from 'lucide-react';
+import { LibraryPage } from './pages/LibraryPage';
+import { useSearchParams } from 'react-router';
 
 function MainApp() {
   usePageMeta({
@@ -94,7 +96,7 @@ function MainApp() {
 
   const [isRestoring, setIsRestoring] = useState(true);
   const [enteredEditorWithoutPdf, setEnteredEditorWithoutPdf] = useState(false);
-  const { showAlert, showConfirm } = useModal();
+  const { showAlert, showConfirm, showPrompt } = useModal();
   const [renderAbortController, setRenderAbortController] = useState<AbortController | null>(null);
   const [renderProgress, setRenderProgress] = useState<number>(0);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -102,56 +104,95 @@ function MainApp() {
 
   const { user } = useAuth();
   const [isSavingToCloud, setIsSavingToCloud] = useState(false);
-  const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
-  const [cloudProjects, setCloudProjects] = useState<any[]>([]);
+  const [linkedCloudProjectId, setLinkedCloudProjectId] = useState<string | null>(null);
+  const [currentProjectTitle, setCurrentProjectTitle] = useState<string | null>(null);
+  const pendingLibraryDownloadRef = useRef(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const handleSaveToCloud = async () => {
+  const handleSaveToLibrary = async () => {
     if (!user) {
-      showAlert('Please sign in to save to the cloud.', { type: 'error' });
+      showAlert('Please sign in to save to your Library.', { type: 'error' });
       return;
     }
+    if (slides.length === 0) {
+      showAlert('Nothing to save yet — add slides first.', { type: 'warning' });
+      return;
+    }
+    const defaultTitle = currentProjectTitle ?? guessPdfProjectTitle(slides);
+    const title = await showPrompt('Name this project so you can find it later in your Library.', {
+      title: linkedCloudProjectId ? 'Update Library entry' : 'Save to Library',
+      defaultValue: defaultTitle,
+      confirmText: 'Save',
+    });
+    if (title === null) return;
     setIsSavingToCloud(true);
     try {
-      const projectId = Date.now().toString(); // simple ID
-      await savePdfProjectToCloud(user.uid, projectId, slides, 'Cloud Project ' + new Date().toLocaleString());
-      showAlert('Project saved to cloud successfully!', { type: 'info' });
+      const projectId = linkedCloudProjectId ?? Date.now().toString();
+      const result = await savePdfProjectToCloud(user.uid, projectId, slides, title, musicSettings);
+      setLinkedCloudProjectId(result.projectId);
+      setCurrentProjectTitle(title);
+      showAlert('Saved to Library!', { type: 'success' });
     } catch (e: any) {
       console.error(e);
-      showAlert('Failed to save to cloud: ' + e.message, { type: 'error' });
+      showAlert('Failed to save to Library: ' + e.message, { type: 'error' });
     } finally {
       setIsSavingToCloud(false);
     }
   };
 
-  const handleLoadFromCloud = async () => {
+  // Handles /?libraryProjectId=<id>[&libraryAction=download] navigated to from the Library page.
+  useEffect(() => {
+    const libraryProjectId = searchParams.get('libraryProjectId');
+    if (!libraryProjectId || isRestoring) return;
     if (!user) {
-      showAlert('Please sign in to load from the cloud.', { type: 'error' });
+      setSearchParams({}, { replace: true });
       return;
     }
-    try {
-      const projects = await listPdfProjectsFromCloud(user.uid);
-      setCloudProjects(projects.sort((a, b) => b.updatedAt - a.updatedAt));
-      setIsCloudModalOpen(true);
-    } catch (e: any) {
-      console.error(e);
-      showAlert('Failed to list cloud projects: ' + e.message, { type: 'error' });
-    }
-  };
+    const action = searchParams.get('libraryAction');
 
-  const confirmLoadCloudProject = async (projectId: string) => {
-    if (!user) return;
-    try {
-      setIsCloudModalOpen(false);
-      const loadedSlides = await loadPdfProjectFromCloud(user.uid, projectId);
-      if (loadedSlides) {
-        setSlides(loadedSlides);
-        showAlert('Project loaded from cloud!', { type: 'info' });
+    (async () => {
+      if (slides.length > 0) {
+        const proceed = await showConfirm(
+          'Opening this project from your Library will replace your current unsaved work in the editor. Continue?',
+          { type: 'warning', title: 'Replace current project?' },
+        );
+        if (!proceed) {
+          setSearchParams({}, { replace: true });
+          return;
+        }
       }
-    } catch (e: any) {
-      console.error(e);
-      showAlert('Failed to load project: ' + e.message, { type: 'error' });
+      try {
+        const data = await loadPdfProjectFromCloud(user.uid, libraryProjectId);
+        if (!data) {
+          showAlert('Project not found — it may have been deleted.', { type: 'error' });
+          return;
+        }
+        skipNextAutoSaveRef.current = true;
+        setSlides(data.slides.map(enforceTtsEnabled));
+        setMusicSettings(data.musicSettings ?? { volume: 0.16 });
+        setLinkedCloudProjectId(libraryProjectId);
+        setCurrentProjectTitle(data.title);
+        setActiveTab('edit');
+        setShowWelcomeLander(false);
+        if (action === 'download') pendingLibraryDownloadRef.current = true;
+      } catch (e: any) {
+        console.error(e);
+        showAlert('Failed to load project: ' + e.message, { type: 'error' });
+      } finally {
+        setSearchParams({}, { replace: true });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, user, isRestoring]);
+
+  // Fires the existing render+download flow once a Library "Download" load has landed in state.
+  useEffect(() => {
+    if (pendingLibraryDownloadRef.current && slides.length > 0 && !isRestoring) {
+      pendingLibraryDownloadRef.current = false;
+      handleDownloadMP4();
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slides, isRestoring]);
 
   const handleScreenRecordFinalizeError = React.useCallback((error: Error) => {
     console.error('Failed to save screen recording.', error);
@@ -486,7 +527,6 @@ function MainApp() {
       if (!current[key]) {
         current[key] = true;
         localStorage.setItem('resource_cache_status', JSON.stringify(current));
-        console.log(`[Resources] Marked ${key} as cached/installed.`);
       }
     };
 
@@ -551,27 +591,38 @@ function MainApp() {
       }
 
       setIsRestoring(false);
-
-      // Check resource cache status
-      const cached = JSON.parse(localStorage.getItem('resource_cache_status') || '{"tts":false,"ffmpeg":false,"webllm":false}');
-
-      // Always init preinstalled/cached resources immediately
-      if (cached.tts) initTTS(settings?.ttsQuantization || 'q8');
-      if (cached.ffmpeg) renderer.load().catch(console.error);
-
-      // Do not eagerly initialize WebLLM on startup.
-      // Keeping a large GPU model resident while restoring projects and preparing render
-      // resources has caused tab instability on some systems. WebLLM is initialized on demand.
-
-      const hideSetupModal = localStorage.getItem('hide_setup_modal') === 'true';
-
-      // Show the setup confirmation if anything is still missing
-      if ((!cached.tts || !cached.ffmpeg || !cached.webllm) && !hideSetupModal) {
-        setIsResourceModalOpen(true);
-      }
     };
     load();
-  }, [renderer]);
+  }, [renderer, enforceTtsEnabled]);
+
+  // Kick off resource loading (cached TTS/FFmpeg init, and the setup modal for
+  // anything still missing) only once the user is past the welcome lander —
+  // either by clicking "Get Started" or by having already dismissed it in a
+  // prior session. This keeps the lander itself free of any background
+  // downloading/initialization work.
+  const resourceInitStartedRef = useRef(false);
+  useEffect(() => {
+    if (showWelcomeLander || isRestoring || resourceInitStartedRef.current) return;
+    resourceInitStartedRef.current = true;
+
+    // Check resource cache status
+    const cached = JSON.parse(localStorage.getItem('resource_cache_status') || '{"tts":false,"ffmpeg":false,"webllm":false}');
+
+    // Init preinstalled/cached resources now that the user has moved past the lander
+    if (cached.tts) initTTS(globalSettings?.ttsQuantization || 'q8');
+    if (cached.ffmpeg) renderer.load().catch(console.error);
+
+    // Do not eagerly initialize WebLLM on startup.
+    // Keeping a large GPU model resident while restoring projects and preparing render
+    // resources has caused tab instability on some systems. WebLLM is initialized on demand.
+
+    const hideSetupModal = localStorage.getItem('hide_setup_modal') === 'true';
+
+    // Show the setup confirmation if anything is still missing
+    if ((!cached.tts || !cached.ffmpeg || !cached.webllm) && !hideSetupModal) {
+      setIsResourceModalOpen(true);
+    }
+  }, [showWelcomeLander, isRestoring, renderer, globalSettings]);
 
   const handleSetupConfirm = async (_dontShowAgain?: boolean) => {
     setIsResourceModalOpen(false);
@@ -659,6 +710,8 @@ function MainApp() {
       setSlides([]);
       setActiveTab('edit');
       setMusicSettings({ volume: 0.16 }); // Reset music settings on start over
+      setLinkedCloudProjectId(null);
+      setCurrentProjectTitle(null);
     }
   };
 
@@ -773,6 +826,8 @@ function MainApp() {
 
   const onUploadComplete = async (pages: RenderedPage[]) => {
     setEnteredEditorWithoutPdf(false);
+    setLinkedCloudProjectId(null);
+    setCurrentProjectTitle(null);
 
     // If global defaults are enabled, use them
     let voice = 'af_heart';
@@ -1451,20 +1506,12 @@ function MainApp() {
                 </button>
                 <div className="my-1 h-px bg-white/10" />
                 <button
-                  onClick={() => { handleSaveToCloud(); closeMenu(); }}
+                  onClick={() => { handleSaveToLibrary(); closeMenu(); }}
                   disabled={!user || isSavingToCloud}
                   className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50"
-                  title={!user ? 'Sign in to save to cloud' : ''}
+                  title={!user ? 'Sign in to save to your library' : ''}
                 >
-                  <Cloud className="w-4 h-4" /> {isSavingToCloud ? 'Saving to Cloud...' : 'Save to Cloud'}
-                </button>
-                <button
-                  onClick={() => { handleLoadFromCloud(); closeMenu(); }}
-                  disabled={!user}
-                  className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50"
-                  title={!user ? 'Sign in to load from cloud' : ''}
-                >
-                  <CloudDownload className="w-4 h-4" /> Load from Cloud
+                  <Cloud className="w-4 h-4" /> {isSavingToCloud ? 'Saving to Library...' : linkedCloudProjectId ? 'Update Library Entry' : 'Save to Library'}
                 </button>
                 <div className="my-1 h-px bg-white/10" />
                 <button
@@ -1763,40 +1810,6 @@ function MainApp() {
         </div>
       )}
 
-      {/* Cloud Projects Modal */}
-      {isCloudModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl max-h-[80vh]">
-            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-slate-800/50">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2"><CloudDownload className="w-5 h-5"/> Cloud Projects</h2>
-              <button
-                onClick={() => setIsCloudModalOpen(false)}
-                className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <XCircle className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-4 overflow-y-auto">
-              {cloudProjects.length === 0 ? (
-                <p className="text-white/50 text-center py-8">No saved projects found in the cloud.</p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {cloudProjects.map(p => (
-                    <button
-                      key={p.projectId}
-                      onClick={() => confirmLoadCloudProject(p.projectId)}
-                      className="flex flex-col text-left p-3 rounded-lg bg-black/20 hover:bg-white/10 border border-white/5 transition-all group"
-                    >
-                      <span className="text-white font-medium group-hover:text-cyan-400 transition-colors">{p.title}</span>
-                      <span className="text-xs text-white/40">{new Date(p.updatedAt).toLocaleString()} • {p.slides?.length || 0} slides</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1810,6 +1823,7 @@ function App() {
             <Routes>
               <Route path="/" element={<MainApp />} />
               <Route path="/account" element={<AccountOverviewPage />} />
+              <Route path="/library" element={<LibraryPage />} />
               <Route path="/assistant" element={<AssistantPage />} />
               <Route path="/issue-reporter" element={<IssueReporterPage />} />
               <Route path="/shorts" element={<ShortsPage />} />
