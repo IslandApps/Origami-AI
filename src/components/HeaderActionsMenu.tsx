@@ -5,6 +5,8 @@ import { AudioLines, BookOpen, Bot, Clapperboard, FileCog, Film, LibraryBig, Set
 import { useLocation } from 'react-router';
 import { TransitionNavLink, useTransitionNavigate } from './TransitionLink';
 import { useAuth } from '../context/AuthContext';
+import { useBackgroundDownload } from '../context/BackgroundDownloadContext';
+import { DownloadBlockedModal } from './DownloadBlockedModal';
 
 interface HeaderActionsMenuProps {
   className?: string;
@@ -23,15 +25,31 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
   renderContent,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [blockedAction, setBlockedAction] = useState<string | null>(null);
   const navigate = useTransitionNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { isBackgroundDownloadActive } = useBackgroundDownload();
 
   const closeMenu = () => setIsOpen(false);
   const customContent = renderContent?.(closeMenu);
 
+  // While the one-time setup resources are downloading, stop in-app navigation
+  // and surface the same blocked modal the "Let's get started" cards use.
+  const guardNavClick = (event: React.MouseEvent<HTMLAnchorElement>, actionLabel: string) => {
+    closeMenu();
+    if (isBackgroundDownloadActive) {
+      event.preventDefault();
+      setBlockedAction(actionLabel);
+    }
+  };
+
   const showLandingPage = () => {
     closeMenu();
+    if (isBackgroundDownloadActive) {
+      setBlockedAction('Landing Page');
+      return;
+    }
     // The Studio reads this flag when it mounts, so the lander also shows when
     // this is triggered from another route; the event covers the case where the
     // Studio is already on screen.
@@ -72,7 +90,7 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
               <TransitionNavLink
                 to="/"
                 end
-                onClick={closeMenu}
+                onClick={(e) => guardNavClick(e, 'Studio')}
                 className={({ isActive }) => `${menuItemClassName} ${isActive ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}
               >
                 <Clapperboard className="h-4 w-4" /> Studio
@@ -80,7 +98,7 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
 
               <TransitionNavLink
                 to="/assistant"
-                onClick={closeMenu}
+                onClick={(e) => guardNavClick(e, 'Assistant')}
                 className={({ isActive }) => `${menuItemClassName} ${isActive ? 'bg-cyan-400/15 text-cyan-100' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}
               >
                 <Bot className="h-4 w-4" /> Assistant
@@ -88,7 +106,7 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
 
               <TransitionNavLink
                 to="/shorts"
-                onClick={closeMenu}
+                onClick={(e) => guardNavClick(e, 'Shorts')}
                 className={({ isActive }) => `${menuItemClassName} ${isActive ? 'bg-cyan-400/15 text-cyan-100' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}
               >
                 <Film className="h-4 w-4" /> Shorts
@@ -96,7 +114,7 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
 
               <TransitionNavLink
                 to="/voice"
-                onClick={closeMenu}
+                onClick={(e) => guardNavClick(e, 'Voice Studio')}
                 className={({ isActive }) => `${menuItemClassName} ${isActive ? 'bg-cyan-400/15 text-cyan-100' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}
               >
                 <AudioLines className="h-4 w-4" /> Voice Studio
@@ -104,7 +122,7 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
 
               <TransitionNavLink
                 to="/convert"
-                onClick={closeMenu}
+                onClick={(e) => guardNavClick(e, 'File Studio')}
                 className={({ isActive }) => `${menuItemClassName} ${isActive ? 'bg-cyan-400/15 text-cyan-100' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}
               >
                 <FileCog className="h-4 w-4" /> File Studio
@@ -123,14 +141,14 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
                   <div className={menuSectionLabelClassName}>Account</div>
                   <TransitionNavLink
                     to="/library"
-                    onClick={closeMenu}
+                    onClick={(e) => guardNavClick(e, 'Library')}
                     className={({ isActive }) => `${menuItemClassName} ${isActive ? 'bg-cyan-400/15 text-cyan-100' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}
                   >
                     <LibraryBig className="h-4 w-4" /> Library
                   </TransitionNavLink>
                   <TransitionNavLink
                     to="/account"
-                    onClick={closeMenu}
+                    onClick={(e) => guardNavClick(e, 'Account')}
                     className={({ isActive }) => `${menuItemClassName} ${isActive ? 'bg-cyan-400/15 text-cyan-100' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}
                   >
                     <User className="h-4 w-4" /> Account
@@ -144,6 +162,12 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
           {customContent}
         </div>
       )}
+
+      <DownloadBlockedModal
+        isOpen={blockedAction !== null}
+        onClose={() => setBlockedAction(null)}
+        actionLabel={blockedAction ?? undefined}
+      />
     </div>
   );
 };

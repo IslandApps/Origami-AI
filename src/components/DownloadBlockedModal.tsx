@@ -1,5 +1,7 @@
 import { Download, Loader2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useBackgroundDownload } from '../context/BackgroundDownloadContext';
 
 interface DownloadBlockedModalProps {
   isOpen: boolean;
@@ -12,6 +14,9 @@ export function DownloadBlockedModal({ isOpen, onClose, actionLabel }: DownloadB
   const [isRendered, setIsRendered] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // While resources are downloading, the persistent toast backdrop already dims
+  // the page — don't stack a second dim behind the modal.
+  const { isBackgroundDownloadActive } = useBackgroundDownload();
 
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -31,13 +36,16 @@ export function DownloadBlockedModal({ isOpen, onClose, actionLabel }: DownloadB
 
   if (!isRendered) return null;
 
-  return (
+  // Portal to <body> so the modal paints in the root stacking context —
+  // ancestors like MainApp's `isolate` would otherwise trap it below the
+  // download dim overlay.
+  return createPortal(
     <div
       className={`fixed inset-0 z-[200] flex items-center justify-center p-4 transition-all duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/45 backdrop-blur-sm"
+        className={`absolute inset-0 ${isBackgroundDownloadActive ? '' : 'bg-black/45 backdrop-blur-sm'}`}
         onClick={onClose}
       />
 
@@ -97,6 +105,7 @@ export function DownloadBlockedModal({ isOpen, onClose, actionLabel }: DownloadB
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

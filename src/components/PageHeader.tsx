@@ -6,6 +6,8 @@ import { HeaderActionsMenu } from './HeaderActionsMenu';
 import { NotificationBell } from './NotificationBell';
 import { useAuth } from '../context/AuthContext';
 import { AuthModal } from './AuthModal';
+import { useBackgroundDownload } from '../context/BackgroundDownloadContext';
+import { DownloadBlockedModal } from './DownloadBlockedModal';
 
 interface PageHeaderProps {
   /** Title to display next to logo, e.g., "Issue Reporter" or "AI Assistant" */
@@ -57,7 +59,9 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   className = '',
 }) => {
   const { user, loading, logout } = useAuth();
+  const { isBackgroundDownloadActive } = useBackgroundDownload();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isSignInBlockedOpen, setIsSignInBlockedOpen] = useState(false);
   const hasUtilityButtons = showNotifications || (showHelp && Boolean(onHelp)) || (showSettings && Boolean(onSettings));
 
   return (
@@ -122,7 +126,13 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
             </div>
           ) : (
             <button
-              onClick={() => setIsAuthModalOpen(true)}
+              onClick={() => {
+                if (isBackgroundDownloadActive) {
+                  setIsSignInBlockedOpen(true);
+                  return;
+                }
+                setIsAuthModalOpen(true);
+              }}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-600/80 hover:bg-cyan-500 text-white text-sm font-medium transition-colors"
             >
               <UserIcon className="w-4 h-4" />
@@ -164,6 +174,12 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       </div>
 
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
+
+      <DownloadBlockedModal
+        isOpen={isSignInBlockedOpen}
+        onClose={() => setIsSignInBlockedOpen(false)}
+        actionLabel="Signing in"
+      />
     </header>
   );
 };

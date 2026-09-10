@@ -799,15 +799,3 @@ input[type="text"], input[type="number"], input[type="url"], textarea, select {
     animation: download-toast-attention 900ms ease-in-out 2;
   }
 }
-
-/* Hold a soft dim behind the notification for its two attention pulses. */
-@keyframes download-toast-backdrop {
-  0%, 100% { opacity: 0; }
-  15%, 80% { opacity: 1; }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .download-toast-backdrop {
-    animation: download-toast-backdrop 1800ms ease-in-out both;
-  }
-}
