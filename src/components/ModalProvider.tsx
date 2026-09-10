@@ -3,7 +3,7 @@ import React, { useState, useCallback, type ReactNode } from 'react';
 import { Modal, type ModalType } from './Modal';
 import { PromptModal } from './PromptModal';
 import { ModalContext } from '../context/ModalContext';
-import type { PromptOptions } from '../context/ModalContext';
+import type { PromptOptions, ThreeWayConfirmOptions } from '../context/ModalContext';
 
 export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [modalState, setModalState] = useState<{
@@ -55,6 +55,43 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       });
     });
   }, []);
+
+  const [threeWayState, setThreeWayState] = useState<{
+    isOpen: boolean;
+    type: ModalType;
+    message: ReactNode;
+    title?: string;
+    confirmText?: string;
+    secondaryText?: string;
+    cancelText?: string;
+    resolve?: (value: 'confirm' | 'secondary' | null) => void;
+  }>({
+    isOpen: false,
+    type: 'confirm',
+    message: '',
+  });
+
+  const showThreeWayConfirm = useCallback((message: ReactNode, options?: ThreeWayConfirmOptions) => {
+    return new Promise<'confirm' | 'secondary' | null>((resolve) => {
+      setThreeWayState({
+        isOpen: true,
+        message,
+        type: options?.type || 'confirm',
+        title: options?.title,
+        confirmText: options?.confirmText || 'Confirm',
+        secondaryText: options?.secondaryText || 'Only Missing',
+        cancelText: options?.cancelText || 'Cancel',
+        resolve: (value) => {
+          setThreeWayState(prev => ({ ...prev, isOpen: false }));
+          resolve(value);
+        }
+      });
+    });
+  }, []);
+
+  const handleThreeWayConfirm = () => threeWayState.resolve?.('confirm');
+  const handleThreeWaySecondary = () => threeWayState.resolve?.('secondary');
+  const handleThreeWayCancel = () => threeWayState.resolve?.(null);
 
   const [promptState, setPromptState] = useState<{
     isOpen: boolean;
@@ -118,7 +155,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   return (
-    <ModalContext.Provider value={{ showAlert, showConfirm, showPrompt }}>
+    <ModalContext.Provider value={{ showAlert, showConfirm, showPrompt, showThreeWayConfirm }}>
       {children}
       <Modal
         isOpen={modalState.isOpen}
@@ -129,6 +166,18 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         cancelText={modalState.cancelText}
         onConfirm={handleConfirm}
         onCancel={handleCancel}
+      />
+      <Modal
+        isOpen={threeWayState.isOpen}
+        type={threeWayState.type}
+        title={threeWayState.title}
+        message={threeWayState.message}
+        confirmText={threeWayState.confirmText}
+        secondaryText={threeWayState.secondaryText}
+        cancelText={threeWayState.cancelText}
+        onConfirm={handleThreeWayConfirm}
+        onSecondary={handleThreeWaySecondary}
+        onCancel={handleThreeWayCancel}
       />
       <PromptModal
         isOpen={promptState.isOpen}

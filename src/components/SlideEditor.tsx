@@ -307,6 +307,8 @@ const SortableSlideItem = ({
   isGenerating,
   isAnalyzing,
   isAnyGenerating,
+  isBatchRunning,
+  isBatchActiveSlide,
   onExpand,
   highlightText,
   onDelete,
@@ -333,6 +335,10 @@ const SortableSlideItem = ({
   isGenerating: boolean,
   isAnalyzing: boolean,
   isAnyGenerating: boolean,
+  /** True while any batch operation (TTS or AI fix) is running, across any slide. */
+  isBatchRunning: boolean,
+  /** True only for the single slide a batch operation is actively processing right now. */
+  isBatchActiveSlide: boolean,
   onExpand: (i: number) => void,
   highlightText?: string,
   onDelete: (index: number) => void;
@@ -837,8 +843,11 @@ const SortableSlideItem = ({
       ref={setNodeRef}
       style={style}
       className={`group relative flex flex-col ${isGridView ? 'gap-4 h-full' : 'sm:flex-row gap-4 sm:gap-6'} p-4 sm:p-5 rounded-2xl bg-linear-to-br from-white/10 to-white/5 border shadow-2xl shadow-black/40 ring-1 ring-inset transition-[border-color,box-shadow] duration-300 ${
-        isGenerating || isTransforming
-          ? 'border-branding-primary shadow-branding-primary/20 ring-branding-primary/50'
+        // While a batch operation is running, only the slide it's actively working on should
+        // get the highlighted/animated border — isGenerating is blanket-true for every slide
+        // for the duration of a batch TTS run, so it can't be used to pick out just one card.
+        (isBatchRunning ? isBatchActiveSlide : isGenerating) || isTransforming
+          ? 'border-branding-primary shadow-branding-primary/20 ring-branding-primary/50 animate-border-flow'
           : 'border-white/30 ring-white/10 hover:border-branding-primary/60 hover:shadow-branding-primary/10 hover:ring-branding-primary/20'
       }`}
     >
@@ -1437,7 +1446,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
   aspectRatio = '16:9',
   isDownloading = false,
 }) => {
-  const { showAlert, showConfirm } = useModal();
+  const { showAlert, showConfirm, showThreeWayConfirm } = useModal();
   const [downloadBlockedAction, setDownloadBlockedAction] = React.useState<string | null>(null);
   const [previewIndex, setPreviewIndex] = React.useState<number | null>(null);
   const [isPreviewTTSPlaying, setIsPreviewTTSPlaying] = React.useState(false);
@@ -1447,6 +1456,9 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
   const previewVideoRef = React.useRef<HTMLVideoElement>(null);
   const [isBatchGenerating, setIsBatchGenerating] = React.useState(false);
   const [isBatchFixing, setIsBatchFixing] = React.useState(false);
+  // The single slide a batch op (TTS or AI fix) is actively working on right now, so the
+  // per-slide "generating" border can highlight just that card instead of every slide.
+  const [batchProcessingIndex, setBatchProcessingIndex] = React.useState<number | null>(null);
   const batchGeneratingCancelledRef = React.useRef(false);
   const batchFixingCancelledRef = React.useRef(false);
   const [isCancellingBatch, setIsCancellingBatch] = React.useState<'generate' | 'fix' | null>(null);
@@ -2166,23 +2178,40 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
       return;
     }
 
-    if (!await showConfirm(`This will generate audio for ${eligibleSlideIndexes.length} eligible slide(s), overwriting any existing audio. Slide Media video slides are excluded. Continue?`, { title: 'Batch Generate', confirmText: 'Generate All' })) {
+    const slideIndexesWithAudio = eligibleSlideIndexes.filter(i => Boolean(slides[i].audioUrl));
+    let targetSlideIndexes = eligibleSlideIndexes;
+
+    if (slideIndexesWithAudio.length > 0) {
+      const choice = await showThreeWayConfirm(
+        `${slideIndexesWithAudio.length} of ${eligibleSlideIndexes.length} eligible slide(s) already have generated audio. Overwrite all of them, or only generate audio for slides that don't have any yet?`,
+        { title: 'Batch Generate', confirmText: 'Overwrite All', secondaryText: 'Only Missing', cancelText: 'Cancel' }
+      );
+      if (choice === null) return;
+      if (choice === 'secondary') {
+        targetSlideIndexes = eligibleSlideIndexes.filter(i => !slides[i].audioUrl);
+        if (targetSlideIndexes.length === 0) {
+          showAlert('All eligible slides already have generated audio.', { type: 'info', title: 'Nothing to Generate' });
+          return;
+        }
+      }
+    } else if (!await showConfirm(`This will generate audio for ${eligibleSlideIndexes.length} eligible slide(s). Slide Media video slides are excluded. Continue?`, { title: 'Batch Generate', confirmText: 'Generate All' })) {
       return;
     }
 
     batchGeneratingCancelledRef.current = false;
     setIsBatchGenerating(true);
-    setBatchProgress({ current: 0, total: eligibleSlideIndexes.length });
+    setBatchProgress({ current: 0, total: targetSlideIndexes.length });
     let cancelled = false;
     let processedCount = 0;
     try {
-      for (let i = 0; i < eligibleSlideIndexes.length; i++) {
+      for (let i = 0; i < targetSlideIndexes.length; i++) {
         if (batchGeneratingCancelledRef.current) {
           cancelled = true;
           break;
         }
-        const slideIndex = eligibleSlideIndexes[i];
-        setBatchProgress({ current: i + 1, total: eligibleSlideIndexes.length });
+        const slideIndex = targetSlideIndexes[i];
+        setBatchProgress({ current: i + 1, total: targetSlideIndexes.length });
+        setBatchProcessingIndex(slideIndex);
         await onGenerateAudio(slideIndex);
         processedCount++;
       }
@@ -2194,6 +2223,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
       }
     } finally {
       setIsBatchGenerating(false);
+      setBatchProcessingIndex(null);
       setBatchProgress(null);
       batchGeneratingCancelledRef.current = false;
     }
@@ -2230,7 +2260,23 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
       return;
     }
 
-    if (!await showConfirm(`This will sequentially update ${eligibleSlideIndexes.length} eligible slide script(s) using AI. Slide Media video slides are excluded. Continue?`, { title: 'Batch AI Fix', confirmText: 'Start Processing' })) {
+    const slideIndexesAlreadyFixed = eligibleSlideIndexes.filter(i => Boolean(slides[i].originalScript));
+    let targetSlideIndexes = eligibleSlideIndexes;
+
+    if (slideIndexesAlreadyFixed.length > 0) {
+      const choice = await showThreeWayConfirm(
+        `${slideIndexesAlreadyFixed.length} of ${eligibleSlideIndexes.length} eligible slide(s) already have an AI-fixed script. Overwrite all of them, or only fix slides that haven't been fixed yet?`,
+        { title: 'Batch AI Fix', confirmText: 'Overwrite All', secondaryText: 'Only Missing', cancelText: 'Cancel' }
+      );
+      if (choice === null) return;
+      if (choice === 'secondary') {
+        targetSlideIndexes = eligibleSlideIndexes.filter(i => !slides[i].originalScript);
+        if (targetSlideIndexes.length === 0) {
+          showAlert('All eligible slides already have an AI-fixed script.', { type: 'info', title: 'Nothing to Process' });
+          return;
+        }
+      }
+    } else if (!await showConfirm(`This will sequentially update ${eligibleSlideIndexes.length} eligible slide script(s) using AI. Slide Media video slides are excluded. Continue?`, { title: 'Batch AI Fix', confirmText: 'Start Processing' })) {
       return;
     }
 
@@ -2242,18 +2288,19 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
 
     batchFixingCancelledRef.current = false;
     setIsBatchFixing(true);
-    setBatchProgress({ current: 0, total: eligibleSlideIndexes.length });
+    setBatchProgress({ current: 0, total: targetSlideIndexes.length });
     let cancelled = false;
     let processedCount = 0;
 
     try {
-      for (let i = 0; i < eligibleSlideIndexes.length; i++) {
+      for (let i = 0; i < targetSlideIndexes.length; i++) {
         if (batchFixingCancelledRef.current) {
           cancelled = true;
           break;
         }
-        const slideIndex = eligibleSlideIndexes[i];
-        setBatchProgress({ current: i + 1, total: eligibleSlideIndexes.length });
+        const slideIndex = targetSlideIndexes[i];
+        setBatchProgress({ current: i + 1, total: targetSlideIndexes.length });
+        setBatchProcessingIndex(slideIndex);
         const slide = slides[slideIndex];
         if (!slide.script.trim()) continue;
 
@@ -2295,7 +2342,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
 
         // Delay 5s to prevent rate limiting only when using cloud API (API imposes 15 RPM ~ 4s/req)
         // Skip delay for WebLLM since it runs locally without rate limits
-        if (!useWebLLM && i < eligibleSlideIndexes.length - 1) {
+        if (!useWebLLM && i < targetSlideIndexes.length - 1) {
           // Check cancellation during the delay using a polling loop
           const delayEnd = Date.now() + 5000;
           while (Date.now() < delayEnd) {
@@ -2312,6 +2359,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
       }
     } finally {
       setIsBatchFixing(false);
+      setBatchProcessingIndex(null);
       setBatchProgress(null);
       batchFixingCancelledRef.current = false;
     }
@@ -3333,6 +3381,8 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
                 isGenerating={generatingSlides.has(index) || isBatchGenerating}
                 isAnalyzing={analyzingSlides.has(index)}
                 isAnyGenerating={generatingSlides.size > 0 || isBatchGenerating}
+                isBatchRunning={isBatchGenerating || isBatchFixing}
+                isBatchActiveSlide={batchProcessingIndex === index}
                 onExpand={(i) => {
                   setPreviewIndex(prev => prev === i ? null : i);
                 }}

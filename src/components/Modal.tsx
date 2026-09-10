@@ -11,8 +11,10 @@ interface ModalProps {
   message: React.ReactNode;
   onConfirm?: () => void;
   onCancel?: () => void;
+  onSecondary?: () => void;
   confirmText?: string;
   cancelText?: string;
+  secondaryText?: string;
   className?: string;
 }
 
@@ -23,8 +25,10 @@ export const Modal: React.FC<ModalProps> = ({
   message,
   onConfirm,
   onCancel,
+  onSecondary,
   confirmText = 'OK',
   cancelText = 'Cancel',
+  secondaryText,
   className = ''
 }) => {
   const [isRendered, setIsRendered] = useState(false);
@@ -105,6 +109,14 @@ export const Modal: React.FC<ModalProps> = ({
               className="w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-bold text-white/60 hover:text-white hover:bg-white/10 transition-colors"
             >
               {cancelText}
+            </button>
+          )}
+          {onSecondary && (
+            <button
+              onClick={onSecondary}
+              className="w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-bold text-white border border-white/20 hover:bg-white/10 transition-colors"
+            >
+              {secondaryText}
             </button>
           )}
           <button

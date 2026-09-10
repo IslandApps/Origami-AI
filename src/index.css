@@ -192,11 +192,62 @@ input[type="text"], input[type="number"], input[type="url"], textarea, select {
   animation: pulseGlow 1.8s ease-in-out infinite;
 }
 
+/* Rotating gradient ring for "this slide is generating" cards (AI script fix,
+   TTS). Drawn as a ::before ring via the mask-exclude trick (content-box
+   mask minus border-box mask = border area only) so it never covers the
+   slide content, and rotated by animating --border-flow-angle rather than
+   `transform: rotate` so the gradient itself sweeps instead of the whole
+   ring spinning as a rigid shape. */
+@property --border-flow-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes borderFlow {
+  to {
+    --border-flow-angle: 360deg;
+  }
+}
+
+.animate-border-flow {
+  position: relative;
+}
+
+.animate-border-flow::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  z-index: 5;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--border-flow-angle),
+    transparent 0deg,
+    var(--primary) 50deg,
+    var(--accent) 110deg,
+    var(--secondary) 170deg,
+    transparent 220deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: borderFlow 2.5s linear infinite;
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse-glow,
   .animate-fade-in,
   .animate-fade-out,
   .animate-slide-in-right {
+    animation: none;
+  }
+
+  .animate-border-flow::before {
     animation: none;
   }
 }

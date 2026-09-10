@@ -17,10 +17,21 @@ export interface PromptOptions {
   cancelText?: string;
 }
 
+export interface ThreeWayConfirmOptions {
+  title?: string;
+  type?: ModalType;
+  confirmText?: string;
+  secondaryText?: string;
+  cancelText?: string;
+}
+
 interface ModalContextType {
   showAlert: (message: ReactNode, options?: ModalOptions) => Promise<void>;
   showConfirm: (message: ReactNode, options?: ModalOptions) => Promise<boolean>;
   showPrompt: (message: ReactNode, options?: PromptOptions) => Promise<string | null>;
+  /** Confirm dialog with a middle "secondary" action alongside confirm/cancel, e.g.
+   *  "Overwrite All" / "Only Missing" / "Cancel". Resolves 'confirm' | 'secondary' | null (cancel). */
+  showThreeWayConfirm: (message: ReactNode, options?: ThreeWayConfirmOptions) => Promise<'confirm' | 'secondary' | null>;
 }
 
 export const ModalContext = createContext<ModalContextType | undefined>(undefined);
