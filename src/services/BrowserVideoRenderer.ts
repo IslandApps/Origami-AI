@@ -1321,7 +1321,7 @@ export class BrowserVideoRenderer {
 
     ffmpeg.on('progress', ({ progress, time }) => {
       // Prefer time-based calculation if we have a valid estimated duration
-      let p = 0;
+      let p: number;
 
       if (typeof time === 'number' && estimatedTotalDuration > 0) {
         // time is usually in microseconds in recent ffmpeg.wasm versions

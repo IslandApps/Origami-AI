@@ -183,15 +183,18 @@ const Field: React.FC<{ label: string; icon?: React.ReactNode; children: React.R
   icon,
   children,
   className,
-}) => (
-  <div className={className}>
-    <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-white/70">
-      {icon && <span className={THEME[useAccent()].icon}>{icon}</span>}
-      {label}
-    </span>
-    {children}
-  </div>
-);
+}) => {
+  const theme = useAccentTheme();
+  return (
+    <div className={className}>
+      <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-white/70">
+        {icon && <span className={theme.icon}>{icon}</span>}
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+};
 
 const Chip: React.FC<{
   active: boolean;
@@ -199,24 +202,27 @@ const Chip: React.FC<{
   disabled?: boolean;
   className?: string;
   children: React.ReactNode;
-}> = ({ active, onClick, disabled, className, children }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    disabled={disabled}
-    aria-pressed={active}
-    className={cn(
-      'focus-ring rounded-lg border px-3.5 py-2 text-sm transition-colors',
-      active
-        ? cn('font-semibold', THEME[useAccent()].chipActive)
-        : 'border-white/20 bg-white/[0.07] font-semibold text-white/90 hover:border-white/40 hover:text-white',
-      disabled && 'cursor-not-allowed opacity-40',
-      className,
-    )}
-  >
-    {children}
-  </button>
-);
+}> = ({ active, onClick, disabled, className, children }) => {
+  const theme = useAccentTheme();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      className={cn(
+        'focus-ring rounded-lg border px-3.5 py-2 text-sm transition-colors',
+        active
+          ? cn('font-semibold', theme.chipActive)
+          : 'border-white/20 bg-white/[0.07] font-semibold text-white/90 hover:border-white/40 hover:text-white',
+        disabled && 'cursor-not-allowed opacity-40',
+        className,
+      )}
+    >
+      {children}
+    </button>
+  );
+};
 
 /**
  * Two mutually exclusive modes rendered as one track, so the pair reads as a
@@ -231,42 +237,45 @@ const ModeSwitch: React.FC<{
   disabled?: boolean;
   label: string;
   fullWidth?: boolean;
-}> = ({ name, options, value, onChange, disabled, label, fullWidth }) => (
-  <fieldset
-    disabled={disabled}
-    className={cn(
-      'inline-flex rounded-lg border border-white/10 bg-black/20 p-1 min-w-0 max-w-full',
-      fullWidth && 'flex w-full',
-      disabled && 'opacity-40',
-    )}
-  >
-    <legend className="sr-only">{label}</legend>
-    {options.map((option) => (
-      <label
-        key={option.value}
-        className={cn(
-          'cursor-pointer rounded-md px-2.5 py-1.5 text-xs sm:text-sm transition-colors min-w-0 truncate',
-          fullWidth && 'flex-1 text-center',
-          `has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:${THEME[useAccent()].modeFocus}`,
-          value === option.value
-            ? cn('font-semibold', THEME[useAccent()].modeActive)
-            : 'font-medium text-white/80 hover:text-white',
-          disabled && 'cursor-not-allowed',
-        )}
-      >
-        <input
-          type="radio"
-          name={name}
-          value={option.value}
-          checked={value === option.value}
-          onChange={() => onChange(option.value)}
-          className="sr-only"
-        />
-        {option.label}
-      </label>
-    ))}
-  </fieldset>
-);
+}> = ({ name, options, value, onChange, disabled, label, fullWidth }) => {
+  const theme = useAccentTheme();
+  return (
+    <fieldset
+      disabled={disabled}
+      className={cn(
+        'inline-flex rounded-lg border border-white/10 bg-black/20 p-1 min-w-0 max-w-full',
+        fullWidth && 'flex w-full',
+        disabled && 'opacity-40',
+      )}
+    >
+      <legend className="sr-only">{label}</legend>
+      {options.map((option) => (
+        <label
+          key={option.value}
+          className={cn(
+            'cursor-pointer rounded-md px-2.5 py-1.5 text-xs sm:text-sm transition-colors min-w-0 truncate',
+            fullWidth && 'flex-1 text-center',
+            `has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:${theme.modeFocus}`,
+            value === option.value
+              ? cn('font-semibold', theme.modeActive)
+              : 'font-medium text-white/80 hover:text-white',
+            disabled && 'cursor-not-allowed',
+          )}
+        >
+          <input
+            type="radio"
+            name={name}
+            value={option.value}
+            checked={value === option.value}
+            onChange={() => onChange(option.value)}
+            className="sr-only"
+          />
+          {option.label}
+        </label>
+      ))}
+    </fieldset>
+  );
+};
 
 const Toggle: React.FC<{
   checked: boolean;
@@ -336,15 +345,18 @@ const ControlCard: React.FC<{
   icon?: React.ReactNode;
   className?: string;
   children: React.ReactNode;
-}> = ({ label, icon, className, children }) => (
-  <div className={cn('rounded-lg border border-white/12 bg-white/[0.04] p-3.5', className)}>
-    <span className="mb-2.5 flex items-center gap-1.5 text-xs font-medium text-white/70">
-      {icon && <span className={THEME[useAccent()].icon}>{icon}</span>}
-      {label}
-    </span>
-    {children}
-  </div>
-);
+}> = ({ label, icon, className, children }) => {
+  const theme = useAccentTheme();
+  return (
+    <div className={cn('rounded-lg border border-white/12 bg-white/[0.04] p-3.5', className)}>
+      <span className="mb-2.5 flex items-center gap-1.5 text-xs font-medium text-white/70">
+        {icon && <span className={theme.icon}>{icon}</span>}
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+};
 
 /** Proportional glyph so the aspect chips show their shape, not just name it. */
 const ratioGlyph: Record<ShortsAspect, string> = {

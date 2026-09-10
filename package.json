@@ -18,12 +18,6 @@
     "kill-all": "echo 'kill-all script removed; use platform tools (taskkill/killall) if necessary'"
   },
   "dependencies": {
-    "vite": "^7.2.4",
-    "@vitejs/plugin-react": "^5.1.1",
-    "typescript": "^6.0.2",
-    "tailwindcss": "^4.2.2",
-    "postcss": "^8.5.10",
-    "autoprefixer": "^10.5.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -33,6 +27,8 @@
     "@marsidev/react-turnstile": "^1.6.1",
     "@mlc-ai/web-llm": "^0.2.80",
     "@tailwindcss/postcss": "^4.2.2",
+    "@vitejs/plugin-react": "^5.1.1",
+    "autoprefixer": "^10.5.0",
     "clsx": "^2.1.1",
     "compression": "^1.8.1",
     "concurrently": "^9.2.1",
@@ -50,15 +46,19 @@
     "ogl": "^1.0.11",
     "pdfjs-dist": "^6.2.108",
     "pidusage": "^3.0.2",
+    "postcss": "^8.5.10",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-dropzone": "^14.3.8",
     "react-markdown": "^10.1.0",
     "react-router": "^8.3.0",
     "tailwind-merge": "^3.4.0",
+    "tailwindcss": "^4.2.2",
     "tesseract.js": "^7.0.0",
     "tree-kill": "^1.2.2",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vite": "^7.2.4"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260722.1",
@@ -71,7 +71,9 @@
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.8.0",
+    "typescript-eslint": "^8.70.0",
     "wrangler": "^4.118.0"
   },
   "overrides": {

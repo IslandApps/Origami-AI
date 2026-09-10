@@ -2138,7 +2138,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
   };
 
   const handleApplyGlobalVoice = async () => {
-    let currentVoices = voices;
+    const currentVoices = voices;
 
 
 

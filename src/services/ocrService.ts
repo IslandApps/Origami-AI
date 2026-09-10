@@ -37,7 +37,7 @@ function preprocessCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
 
   // Convert to grayscale and calculate histogram for thresholding
   const grayscale = new Uint8Array(width * height);
-  let histogram = new Array(256).fill(0);
+  const histogram = new Array(256).fill(0);
 
   for (let i = 0; i < data.length; i += 4) {
     // Use luminosity method: 0.299*R + 0.587*G + 0.114*B
@@ -52,7 +52,7 @@ function preprocessCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
 
   let sumB = 0;
   let wB = 0;
-  let wF = 0;
+  let wF: number;
   let maxVariance = 0;
   let threshold = 0;
 

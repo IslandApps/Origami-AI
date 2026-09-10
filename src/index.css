@@ -706,3 +706,33 @@ input[type="text"], input[type="number"], input[type="url"], textarea, select {
     animation: none;
   }
 }
+
+/* Two gentle highlights on appearance; progress updates do not restart them. */
+@keyframes download-toast-attention {
+  0%, 100% {
+    border-color: rgb(96 165 250 / 60%);
+    box-shadow: 0 16px 48px rgb(0 0 0 / 50%);
+  }
+  50% {
+    border-color: rgb(147 197 253);
+    box-shadow: 0 16px 48px rgb(0 0 0 / 50%), 0 0 0 3px rgb(96 165 250 / 25%), 0 0 28px rgb(96 165 250 / 20%);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .download-toast-attention {
+    animation: download-toast-attention 900ms ease-in-out 2;
+  }
+}
+
+/* Hold a soft dim behind the notification for its two attention pulses. */
+@keyframes download-toast-backdrop {
+  0%, 100% { opacity: 0; }
+  15%, 80% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .download-toast-backdrop {
+    animation: download-toast-backdrop 1800ms ease-in-out both;
+  }
+}

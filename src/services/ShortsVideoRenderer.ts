@@ -479,7 +479,7 @@ export class ShortsVideoRenderer {
     const scale = isPop ? 0.86 + easeOutBack(popT) * 0.14 : 1;
     const fadeIn = easeOutCubic(clamp(age / 0.1, 0, 1));
 
-    let baselineY = height * 0.72;
+    let baselineY: number;
     if (position === 'top') {
       baselineY = (isClean || isCinema) ? height * 0.16 : height * 0.22;
     } else if (position === 'middle') {

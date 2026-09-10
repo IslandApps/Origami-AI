@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp, Download, Loader2 } from 'lucide-react';
 import { ttsEvents, type ProgressEventDetail } from '../services/ttsService';
 import { videoEvents } from '../services/BrowserVideoRenderer';
 import { webLlmEvents } from '../services/webLlmService';
@@ -91,67 +91,80 @@ export function BackgroundDownloadToast({ active, queue }: BackgroundDownloadToa
   const allReady = (['tts', 'ffmpeg', 'webllm'] as const).every(key => !queue[key] || status[key] === 'ready');
 
   return (
+    <>
+      <div
+        aria-hidden="true"
+        className="download-toast-backdrop pointer-events-none fixed inset-0 z-[49] bg-black/45 opacity-0"
+      />
     <div
-      className="fixed bottom-6 right-6 z-50 w-72 bg-[#0F1115] border border-white/10 rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200"
+      className="fixed bottom-4 right-4 z-50 w-[calc(100vw-2rem)] sm:bottom-6 sm:right-6 sm:w-96 bg-[#1b222e] border border-blue-400/60 rounded-2xl shadow-[0_16px_48px_rgba(0,0,0,0.5)] overflow-hidden download-toast-attention"
       style={{ fontFamily: '"Roboto", "Inter", system-ui, -apple-system, sans-serif' }}
     >
-      <div className="flex items-start gap-2 px-3 py-2.5 border-b border-white/10">
-        {allReady ? (
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-        ) : (
-          <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0 mt-0.5" />
-        )}
-        <div className="flex flex-col flex-1 min-w-0">
-          <span className="text-xs font-medium text-white truncate">
+      <div className={`h-1.5 ${allReady ? 'bg-emerald-400' : 'bg-blue-400'}`} />
+      <div className="flex items-start gap-3 px-4 py-4 bg-[#222d3e] border-b border-slate-600/60">
+        <div className={`flex h-10 w-10 items-center justify-center rounded-xl shrink-0 ${allReady ? 'bg-emerald-400/15 text-emerald-300' : 'bg-blue-400/20 text-blue-200'}`}>
+          {allReady ? <CheckCircle2 className="w-5 h-5" /> : <Download className="w-5 h-5" />}
+        </div>
+        <div className="flex flex-col flex-1 min-w-0" role="status" aria-live="polite">
+          <span className="text-base font-bold text-slate-100 leading-6">
             {allReady ? 'Setup complete' : 'Downloading resources…'}
           </span>
-          {!allReady && (
-            <span className="text-[10px] text-white/40 truncate">
-              One-time download • faster in the future
-            </span>
-          )}
+          <span className="mt-1 text-xs leading-5 text-slate-300">
+            {allReady ? 'Your resources are ready to use.' : 'One-time setup • preparing your tools'}
+          </span>
         </div>
         <button
           onClick={() => setMinimized(prev => !prev)}
-          className="text-white/40 hover:text-white/80 transition-colors shrink-0 mt-0.5"
-          aria-label={minimized ? 'Expand' : 'Minimize'}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 hover:text-slate-100 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 transition-colors shrink-0"
+          aria-label={minimized ? 'Expand download details' : 'Minimize download details'}
+          aria-expanded={!minimized}
+          aria-controls="background-download-details"
         >
-          {minimized ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          {minimized ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       </div>
 
       {!minimized && (
         <>
-          <div className="px-3 py-2.5 space-y-1.5">
+          <div id="background-download-details" className="px-4 py-4 space-y-3">
             {(['tts', 'ffmpeg', 'webllm'] as const).filter(key => queue[key]).map((key) => (
-              <div key={key} className="flex items-center gap-2 text-xs">
+              <div key={key} className="flex items-center gap-3 text-sm">
                 {status[key] === 'ready' ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                 ) : status[key] === 'active' ? (
-                  <Loader2 className="w-3.5 h-3.5 text-blue-400 animate-spin shrink-0" />
+                  <Loader2 className="w-4 h-4 text-blue-300 motion-safe:animate-spin shrink-0" />
                 ) : (
-                  <div className="w-3.5 h-3.5 rounded-full border border-white/20 shrink-0" />
+                  <div className="w-4 h-4 rounded-full border-2 border-slate-400 shrink-0" />
                 )}
-                <span className={status[key] === 'ready' ? 'text-white/40' : 'text-white/80'}>
+                <span className={status[key] === 'ready' ? 'text-slate-300' : 'text-slate-100'}>
                   {RESOURCE_LABELS[key]}
                 </span>
                 {key === activeKey && (
-                  <span className="ml-auto font-mono text-white/50">{percent}%</span>
+                  <span className="ml-auto rounded-md bg-blue-400/15 px-2 py-1 font-mono text-xs font-bold tabular-nums text-blue-200">{percent}%</span>
                 )}
               </div>
             ))}
           </div>
 
-          {activeKey && (
-            <div className="h-1 bg-black/40">
-              <div
-                className="h-full bg-blue-400 transition-all duration-300"
-                style={{ width: `${percent}%` }}
-              />
-            </div>
-          )}
         </>
       )}
+
+      {activeKey && !allReady && (
+        <div
+          className="h-2 bg-slate-700"
+          role="progressbar"
+          aria-label={`${RESOURCE_LABELS[activeKey]} download progress`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percent}
+        >
+          <div
+            className="h-full bg-blue-400 motion-safe:transition-all duration-300"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      )}
     </div>
+    </>
   );
 }
