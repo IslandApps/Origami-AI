@@ -86,7 +86,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -122,6 +124,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setError(null);
         setSuccessMessage(null);
         setPassword('');
+        setConfirmPassword('');
       }, 300);
       return () => clearTimeout(timer);
     }
@@ -164,6 +167,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setLoading(true);
 
     try {
+      if (mode === 'signup' && password !== confirmPassword) {
+        throw new Error('Passwords do not match. Please re-enter your password.');
+      }
+
       await verifyTurnstile();
 
       if (mode === 'reset') {
@@ -201,6 +208,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         turnstileRef.current?.reset();
         setTurnstileToken(null);
         setPassword('');
+        setConfirmPassword('');
         setMode('signin');
         setSuccessMessage(
           'Account created! Check your inbox for a verification link, then sign in below to continue.'
@@ -417,6 +425,49 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {mode === 'signup' && (
                   <p className="text-[11px] text-white/40 pl-1">
                     Must be at least 6 characters
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Confirm Password Field (signup mode only) */}
+            {mode === 'signup' && (
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="auth-confirm-password-input"
+                  className="text-xs font-semibold text-white/70"
+                >
+                  Confirm Password
+                </label>
+                <div className="relative flex items-center group">
+                  <Lock className="absolute left-3.5 w-4 h-4 text-white/40 group-focus-within:text-cyan-400 transition-colors pointer-events-none" />
+                  <input
+                    id="auth-confirm-password-input"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full pl-10 pr-11 py-2.5 bg-white/[0.04] border border-white/10 hover:border-white/20 focus:border-cyan-400 focus:bg-white/[0.06] rounded-xl text-white placeholder-white/25 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition-all"
+                    placeholder="••••••••"
+                    minLength={6}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-2.5 p-1 text-white/40 hover:text-white hover:bg-white/10 rounded-lg transition-colors focus-ring"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+                {password && confirmPassword && password !== confirmPassword && (
+                  <p className="text-[11px] text-red-300 pl-1">
+                    Passwords do not match
                   </p>
                 )}
               </div>
