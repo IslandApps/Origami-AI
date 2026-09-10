@@ -22,7 +22,7 @@ import backgroundImage from './assets/images/background.png';
 import { useModal } from './context/ModalContext';
 import { BrowserVideoRenderer, videoEvents } from './services/BrowserVideoRenderer';
 import { analyzeVideoNarrationWithGemini } from './services/geminiFileAnalysisService';
-import { RuntimeResourceModal } from './components/RuntimeResourceModal';
+import { AiModeChoiceModal } from './components/AiModeChoiceModal';
 import { WebGPUInstructionsModal } from './components/WebGPUInstructionsModal';
 import { BackgroundDownloadProvider } from './components/BackgroundDownloadProvider';
 import { useBackgroundDownload } from './context/BackgroundDownloadContext';
@@ -87,8 +87,9 @@ function MainApp() {
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
-  const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
+  const [isAiModeChoiceModalOpen, setIsAiModeChoiceModalOpen] = useState(false);
   const [isWebGPUModalOpen, setIsWebGPUModalOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'tts' | 'webllm' | 'ai-prompt' | 'api'>('general');
   const { isBackgroundDownloadActive, startBackgroundDownloads, endBackgroundDownloads } = useBackgroundDownload();
   const [appDownloadBlockedAction, setAppDownloadBlockedAction] = useState<string | null>(null);
   const [renderResolution, setRenderResolution] = useState<'1080p' | '720p'>('1080p');
@@ -620,11 +621,13 @@ function MainApp() {
     load();
   }, [renderer, enforceTtsEnabled]);
 
-  // Kick off resource loading (cached TTS/FFmpeg init, and the setup modal for
-  // anything still missing) only once the user is past the welcome lander —
-  // either by clicking "Get Started" or by having already dismissed it in a
-  // prior session. This keeps the lander itself free of any background
-  // downloading/initialization work.
+  // Kick off resource loading (cached TTS/FFmpeg init, and the AI mode choice
+  // modal if it hasn't been answered yet) only once the user is past the
+  // welcome lander — either by clicking "Get Started" just now, or by having
+  // already dismissed it in a prior session (e.g. a direct reload, or a
+  // bookmarked link straight into the editor). This keeps the lander itself
+  // free of any background downloading/initialization work, while still
+  // covering entrances that skip it entirely.
   const resourceInitStartedRef = useRef(false);
   useEffect(() => {
     if (showWelcomeLander || isRestoring || resourceInitStartedRef.current) return;
@@ -643,23 +646,13 @@ function MainApp() {
 
     const hideSetupModal = localStorage.getItem('hide_setup_modal') === 'true';
 
-    // Show the setup confirmation if anything is still missing
-    if ((!cached.tts || !cached.ffmpeg || !cached.webllm) && !hideSetupModal) {
-      setIsResourceModalOpen(true);
+    // Ask the on-device-AI vs. BYOK question if it hasn't been answered yet.
+    if (!hideSetupModal) {
+      setIsAiModeChoiceModalOpen(true);
     }
   }, [showWelcomeLander, isRestoring, renderer, globalSettings]);
 
-  const handleSetupSkip = () => {
-    setIsResourceModalOpen(false);
-    // Skipping doesn't queue any downloads, but still persists the
-    // acknowledgment so the modal doesn't reprompt every session — resources
-    // will simply be fetched on demand whenever a feature that needs them is used.
-    setSyncedPreference('hide_setup_modal', 'true');
-  };
-
   const handleSetupConfirm = async (_dontShowAgain?: boolean) => {
-    setIsResourceModalOpen(false);
-
     // Clicking Continue starts the background downloads. Persist the acknowledgment
     // even without the "don't show again" checkbox so navigating away (e.g. to
     // /shorts) or refreshing during the download doesn't re-prompt the setup modal.
@@ -702,6 +695,49 @@ function MainApp() {
       }
     } catch (error) {
       console.error('Failed to complete background setup downloads:', error);
+    } finally {
+      endBackgroundDownloads();
+    }
+  };
+
+  // Handlers for the AI mode choice modal shown right after "Get Started".
+  const handleAiModeChoiceSkip = () => {
+    setIsAiModeChoiceModalOpen(false);
+    setSyncedPreference('hide_setup_modal', 'true');
+  };
+
+  const handleAiModeChoiceWebLLM = async () => {
+    setIsAiModeChoiceModalOpen(false);
+    await handleSetupConfirm();
+  };
+
+  const handleAiModeChoiceBYOK = async () => {
+    setIsAiModeChoiceModalOpen(false);
+    setSyncedPreference('hide_setup_modal', 'true');
+
+    // Make sure WebLLM stays off, then open Settings on the API tab so the
+    // user can drop their key straight in.
+    if (globalSettings?.useWebLLM) {
+      await handlePartialGlobalSettings({ useWebLLM: false });
+    }
+    setSettingsInitialTab('api');
+    setIsSettingsOpen(true);
+
+    // Voice narration and video rendering still need to download — only skip WebLLM.
+    const cached = JSON.parse(localStorage.getItem('resource_cache_status') || '{"tts":false,"ffmpeg":false,"webllm":false}');
+    const queue = { tts: !cached.tts, ffmpeg: !cached.ffmpeg, webllm: false };
+    if (!queue.tts && !queue.ffmpeg) return;
+
+    startBackgroundDownloads(queue);
+    try {
+      if (queue.tts) {
+        await waitForTTSInitialization(globalSettings?.ttsQuantization || 'q8');
+      }
+      if (queue.ffmpeg) {
+        await renderer.load();
+      }
+    } catch (error) {
+      console.error('Failed to complete background BYOK setup downloads:', error);
     } finally {
       endBackgroundDownloads();
     }
@@ -1503,7 +1539,7 @@ function MainApp() {
   const shouldShowEditor = slides.length > 0 || enteredEditorWithoutPdf;
 
   return (
-    <div className={`min-h-screen bg-branding-dark text-white pt-4 sm:pt-8 pb-2 flex flex-col px-4 ${activeTab === 'preview' ? 'sm:px-4' : 'sm:px-8'}`}>
+    <div className={`isolate min-h-screen bg-branding-dark text-white pt-4 sm:pt-8 pb-2 flex flex-col px-4 ${activeTab === 'preview' ? 'sm:px-4' : 'sm:px-8'}`}>
       <input
         ref={importFileInputRef}
         type="file"
@@ -1515,7 +1551,7 @@ function MainApp() {
       <PageHeader
         title="Origami"
         onHelp={() => setIsTutorialOpen(true)}
-        onSettings={() => setIsSettingsOpen(true)}
+        onSettings={() => { setSettingsInitialTab('general'); setIsSettingsOpen(true); }}
         centerContent={slides.length > 0 && !showWelcomeLander ? (
           <div className="flex items-center p-1 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md">
             <button
@@ -1643,6 +1679,8 @@ function MainApp() {
               setShowWelcomeLander(false);
               setSyncedPreference('has_seen_welcome_lander', 'true');
               window.scrollTo({ top: 0, behavior: 'instant' });
+              // The resource-init effect below (gated on showWelcomeLander) picks up
+              // from here and opens the AI mode choice modal if it hasn't been answered.
             }} />
           </div>
         ) : !shouldShowEditor ? (
@@ -1804,7 +1842,7 @@ function MainApp() {
                 aspectRatio={aspectRatio}
                 viewMode={slideEditorViewMode}
                 onViewModeChange={setSlideEditorViewMode}
-                onOpenSettings={() => setIsSettingsOpen(true)}
+                onOpenSettings={() => { setSettingsInitialTab('general'); setIsSettingsOpen(true); }}
                 onStartScreenRecord={handleStartScreenRecord}
                 defaultToolsConfigTab={enteredEditorWithoutPdf ? 'media' : 'tools'}
                 isDownloading={isBackgroundDownloadActive}
@@ -1842,6 +1880,7 @@ function MainApp() {
           currentSettings={globalSettings}
           onSave={handleSaveGlobalSettings}
           onShowWebGPUModal={() => setIsWebGPUModalOpen(true)}
+          initialTab={settingsInitialTab}
         />
       )}
 
@@ -1850,10 +1889,11 @@ function MainApp() {
         onClose={() => setIsTutorialOpen(false)}
       />
 
-      <RuntimeResourceModal
-        isOpen={isResourceModalOpen}
-        onConfirm={handleSetupConfirm}
-        onSkip={handleSetupSkip}
+      <AiModeChoiceModal
+        isOpen={isAiModeChoiceModalOpen}
+        onSelectWebLLM={handleAiModeChoiceWebLLM}
+        onSelectBYOK={handleAiModeChoiceBYOK}
+        onSkip={handleAiModeChoiceSkip}
       />
 
       <WebGPUInstructionsModal

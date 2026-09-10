@@ -27,7 +27,8 @@ export function useShortsRuntimeSetup(params: {
   setGlobalSettings: React.Dispatch<React.SetStateAction<GlobalSettings>>;
   setProject: React.Dispatch<React.SetStateAction<ShortsProject>>;
   setStage: React.Dispatch<React.SetStateAction<Stage>>;
-  setIsResourceModalOpen: (open: boolean) => void;
+  setIsAiModeChoiceModalOpen: (open: boolean) => void;
+  setIsSettingsOpen: (open: boolean) => void;
   setIsWebGPUModalOpen: (open: boolean) => void;
   startBackgroundDownloads: (flags: { tts: boolean; ffmpeg: boolean; webllm: boolean }) => void;
   endBackgroundDownloads: () => void;
@@ -40,7 +41,8 @@ export function useShortsRuntimeSetup(params: {
     setGlobalSettings,
     setProject,
     setStage,
-    setIsResourceModalOpen,
+    setIsAiModeChoiceModalOpen,
+    setIsSettingsOpen,
     setIsWebGPUModalOpen,
     startBackgroundDownloads,
     endBackgroundDownloads,
@@ -83,17 +85,13 @@ export function useShortsRuntimeSetup(params: {
         console.warn('[Shorts] TTS init could not be started:', e);
       }
 
-      // Landing on /shorts directly skips the landing page's one-time WebGPU/WebLLM
-      // setup prompt, so check for it here too or a local model never gets installed
-      // until the user hits an alert mid-generation.
-      if (!merged.shortsUseOpenAI) {
-        const cached = JSON.parse(
-          localStorage.getItem('resource_cache_status') || '{"tts":false,"ffmpeg":false,"webllm":false}',
-        );
-        const hideSetupModal = localStorage.getItem('hide_setup_modal') === 'true';
-        if (!cached.webllm && !hideSetupModal) {
-          setIsResourceModalOpen(true);
-        }
+      // Landing on /shorts directly skips the landing page's one-time on-device-AI
+      // vs. BYOK prompt, so ask it here too — otherwise a local model never gets
+      // installed (or a BYOK key never gets set) until the user hits a dead end
+      // mid-generation.
+      const hideSetupModal = localStorage.getItem('hide_setup_modal') === 'true';
+      if (!hideSetupModal) {
+        setIsAiModeChoiceModalOpen(true);
       }
     })();
 
@@ -117,15 +115,15 @@ export function useShortsRuntimeSetup(params: {
       // eslint-disable-next-line react-hooks/exhaustive-deps
       renderAbortRef.current?.abort();
     };
-  }, [defaultGlobalSettings, generationAbortRef, renderAbortRef, setGlobalSettings, setIsResourceModalOpen, setProject, setStage]);
+  }, [defaultGlobalSettings, generationAbortRef, renderAbortRef, setGlobalSettings, setIsAiModeChoiceModalOpen, setProject, setStage]);
 
-  // Mirrors the landing page's one-time setup: pick a WebGPU-compatible default
-  // model and download it in the background, so a direct /shorts visit doesn't
-  // skip the check entirely and only surface it as a mid-generation dead end.
-  const handleResourceSetupConfirm = useCallback(
-    async (_dontShowAgain?: boolean) => {
-      setIsResourceModalOpen(false);
-      // Same as the landing page: clicking Continue persists the acknowledgment so a
+  // Mirrors the landing page's one-time on-device-AI-vs-BYOK choice, so a direct
+  // /shorts visit doesn't skip it entirely and only surface it as a mid-generation
+  // dead end.
+  const handleAiModeChoiceWebLLM = useCallback(
+    async () => {
+      setIsAiModeChoiceModalOpen(false);
+      // Same as the landing page: picking an option persists the acknowledgment so a
       // refresh or navigating to /shorts mid-download doesn't re-prompt the modal.
       setSyncedPreference('hide_setup_modal', 'true');
 
@@ -164,22 +162,37 @@ export function useShortsRuntimeSetup(params: {
       startBackgroundDownloads,
       endBackgroundDownloads,
       setGlobalSettings,
-      setIsResourceModalOpen,
+      setIsAiModeChoiceModalOpen,
       setIsWebGPUModalOpen,
     ],
   );
 
-  const handleResourceSetupSkip = useCallback(() => {
-    setIsResourceModalOpen(false);
+  const handleAiModeChoiceBYOK = useCallback(async () => {
+    setIsAiModeChoiceModalOpen(false);
+    setSyncedPreference('hide_setup_modal', 'true');
+
+    // Make sure WebLLM stays off, then open Settings (already defaulted to the
+    // API tab on this page) so the user can drop their key straight in.
+    if (globalSettings.useWebLLM) {
+      const next = { ...globalSettings, useWebLLM: false };
+      await saveGlobalSettings(next);
+      setGlobalSettings(next);
+    }
+    setIsSettingsOpen(true);
+  }, [globalSettings, setGlobalSettings, setIsAiModeChoiceModalOpen, setIsSettingsOpen]);
+
+  const handleAiModeChoiceSkip = useCallback(() => {
+    setIsAiModeChoiceModalOpen(false);
     // Skipping doesn't queue the WebLLM download, but still persists the
     // acknowledgment so the modal doesn't reprompt every session.
     setSyncedPreference('hide_setup_modal', 'true');
-  }, [setIsResourceModalOpen]);
+  }, [setIsAiModeChoiceModalOpen]);
 
   return {
     imageModels,
     videoModels,
-    handleResourceSetupConfirm,
-    handleResourceSetupSkip,
+    handleAiModeChoiceWebLLM,
+    handleAiModeChoiceBYOK,
+    handleAiModeChoiceSkip,
   };
 }

@@ -16,7 +16,7 @@ import { PageHeader } from '../components/PageHeader';
 import { GlobalSettingsModal } from '../components/GlobalSettingsModal';
 import { WebGPUInstructionsModal } from '../components/WebGPUInstructionsModal';
 import { WebLLMLoadingModal } from '../components/WebLLMLoadingModal';
-import { RuntimeResourceModal } from '../components/RuntimeResourceModal';
+import { AiModeChoiceModal } from '../components/AiModeChoiceModal';
 import { MusicPickerModal } from '../components/MusicPickerModal';
 import { useBackgroundDownload } from '../context/BackgroundDownloadContext';
 import { ShortsComposeStage } from '../components/shorts/ShortsComposeStage';
@@ -105,8 +105,8 @@ export const ShortsPage: React.FC = () => {
     setIsMusicPickerOpen,
     isVoiceAuditionOpen,
     setIsVoiceAuditionOpen,
-    isResourceModalOpen,
-    setIsResourceModalOpen,
+    isAiModeChoiceModalOpen,
+    setIsAiModeChoiceModalOpen,
     isPollinationsInfoOpen,
     setIsPollinationsInfoOpen,
   } = useShortsModals();
@@ -129,13 +129,14 @@ export const ShortsPage: React.FC = () => {
     fileName,
   } = useShortsRender({ project, projectRef, showAlert, pendingLibraryDownloadRef });
 
-  const { imageModels, videoModels, handleResourceSetupConfirm, handleResourceSetupSkip } = useShortsRuntimeSetup({
+  const { imageModels, videoModels, handleAiModeChoiceWebLLM, handleAiModeChoiceBYOK, handleAiModeChoiceSkip } = useShortsRuntimeSetup({
     defaultGlobalSettings: DEFAULT_GLOBAL_SETTINGS,
     globalSettings,
     setGlobalSettings,
     setProject,
     setStage,
-    setIsResourceModalOpen,
+    setIsAiModeChoiceModalOpen,
+    setIsSettingsOpen,
     setIsWebGPUModalOpen,
     startBackgroundDownloads,
     endBackgroundDownloads,
@@ -735,7 +736,12 @@ export const ShortsPage: React.FC = () => {
         onSelectTrack={handleSelectTrack}
       />
 
-      <RuntimeResourceModal isOpen={isResourceModalOpen} onConfirm={handleResourceSetupConfirm} onSkip={handleResourceSetupSkip} />
+      <AiModeChoiceModal
+        isOpen={isAiModeChoiceModalOpen}
+        onSelectWebLLM={handleAiModeChoiceWebLLM}
+        onSelectBYOK={handleAiModeChoiceBYOK}
+        onSkip={handleAiModeChoiceSkip}
+      />
 
       <WebGPUInstructionsModal isOpen={isWebGPUModalOpen} onClose={() => setIsWebGPUModalOpen(false)} />
 

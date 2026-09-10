@@ -96,7 +96,7 @@ export const LicensePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-branding-dark text-white pt-8 pb-2 flex flex-col px-4 sm:px-8">
+    <div className="isolate min-h-screen bg-branding-dark text-white pt-8 pb-2 flex flex-col px-4 sm:px-8">
       {/* Background Image */}
       <img
         src={backgroundImage}

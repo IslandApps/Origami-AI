@@ -373,7 +373,7 @@ export const IssueReporterPage: React.FC = () => {
   }, [replaceCapture, resetAnalysis]);
 
   return (
-    <div className="min-h-screen bg-branding-dark text-white pt-8 flex flex-col">
+    <div className="isolate min-h-screen bg-branding-dark text-white pt-8 flex flex-col">
       {/* Background */}
       <img
         src={backgroundImage}

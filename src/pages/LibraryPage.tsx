@@ -137,7 +137,7 @@ export const LibraryPage: React.FC = () => {
   }, [user, showConfirm, showAlert]);
 
   return (
-    <div className="min-h-screen bg-[#121215] text-white pt-8 pb-2 flex flex-col px-4 sm:px-8">
+    <div className="isolate min-h-screen bg-[#121215] text-white pt-8 pb-2 flex flex-col px-4 sm:px-8">
       <img
         src={backgroundImage}
         alt=""

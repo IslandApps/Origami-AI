@@ -7,7 +7,7 @@ export function useShortsModals() {
   const [isWebLLMLoadingOpen, setIsWebLLMLoadingOpen] = useState(false);
   const [isMusicPickerOpen, setIsMusicPickerOpen] = useState(false);
   const [isVoiceAuditionOpen, setIsVoiceAuditionOpen] = useState(false);
-  const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
+  const [isAiModeChoiceModalOpen, setIsAiModeChoiceModalOpen] = useState(false);
   const [isPollinationsInfoOpen, setIsPollinationsInfoOpen] = useState(false);
 
   return {
@@ -21,8 +21,8 @@ export function useShortsModals() {
     setIsMusicPickerOpen,
     isVoiceAuditionOpen,
     setIsVoiceAuditionOpen,
-    isResourceModalOpen,
-    setIsResourceModalOpen,
+    isAiModeChoiceModalOpen,
+    setIsAiModeChoiceModalOpen,
     isPollinationsInfoOpen,
     setIsPollinationsInfoOpen,
   };
