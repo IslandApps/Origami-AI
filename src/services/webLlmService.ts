@@ -162,7 +162,6 @@ export const webLlmModelSupportsVision = (modelId: string | null | undefined): b
 };
 
 // WebGPU types are often not included by default in standard lib yet
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getNavigator = () => navigator as any;
 
 const WEBLLM_MIN_LIMITS = {
@@ -175,7 +174,6 @@ const WEBLLM_MIN_LIMITS = {
 
 const formatMiB = (bytes: number): string => `${Math.round(bytes / (1 << 20))}MB`;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getWebLLMCompatibilityError = (adapter: any): string | null => {
     const limits = adapter?.limits;
     if (!limits) {
@@ -817,7 +815,6 @@ export const generateWebLLMResponse = async (
         // Calling resetChat() before each request forces a fresh context every time.
         await withEngineTimeout(engine.resetChat(), RESET_CHAT_TIMEOUT_MS, 'WebLLM reset');
 
-        console.log("[WebLLM] Generating response with model:", currentModelId);
         const stream = await withEngineTimeout(engine.chat.completions.create({
             messages,
             temperature,
@@ -836,8 +833,6 @@ export const generateWebLLMResponse = async (
             const delta = chunk.choices[0]?.delta?.content;
             if (delta) content += delta;
         }
-        console.log("[WebLLM] Streamed Reply length:", content.length);
-
         content = content.replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '')
                          .replace(/^[\s\S]*?<\/think>/i, '')
                          .replace(/<think\b[^>]*>[\s\S]*$/gi, '')
@@ -861,7 +856,7 @@ export const generateWebLLMResponse = async (
             console.warn("[WebLLM] Detected WASM BindingError — tearing down engine and retrying once...");
             await rebuildWebLLMEngine(modelToReload);
 
-            console.log("[WebLLM] Engine rebuilt successfully. Retrying generation...");
+            console.warn("[WebLLM] Engine rebuilt successfully. Retrying generation...");
             return generateWebLLMResponse(messages, temperature, true, signal, maxTokens);
         }
 

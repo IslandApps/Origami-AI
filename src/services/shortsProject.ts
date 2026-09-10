@@ -544,7 +544,7 @@ export const applyRecordedAudioToScenes = async (
       }
 
       const wavBytes = audioBufferToWav(sliceBuffer);
-      const sliceBlob = new Blob([wavBytes], { type: 'audio/wav' });
+      const sliceBlob = new Blob([wavBytes as BlobPart], { type: 'audio/wav' });
       const sliceUrl = URL.createObjectURL(sliceBlob);
 
       if (scenes[i].audioUrl) {

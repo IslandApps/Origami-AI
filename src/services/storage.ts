@@ -1,6 +1,6 @@
 import { auth, db } from '../config/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import type { SlideData, MusicSettings } from '../components/SlideEditor';
+import type { SlideData, MusicSettings } from '../types/slides';
 
 export interface GlobalSettings {
   isEnabled: boolean;
@@ -12,7 +12,7 @@ export interface GlobalSettings {
   previewMode: string;
   aspectRatio: '16:9' | '9:16' | '4:3' | '1:1';
   music?: {
-    blob: Blob | File;
+    blob?: Blob | File;
     volume: number;
     fileName: string;
   };

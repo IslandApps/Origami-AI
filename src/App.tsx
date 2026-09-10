@@ -4,7 +4,8 @@ import { BrowserRouter, Routes, Route, useNavigate } from 'react-router';
 
 import { PDFUploader } from './components/PDFUploader';
 import { WelcomeLander } from './components/WelcomeLander';
-import { SlideEditor, type SlideData, type MusicSettings } from './components/SlideEditor';
+import { SlideEditor } from './components/SlideEditor';
+import type { SlideData, MusicSettings } from './types/slides';
 import { SimplePreview } from './components/SimplePreview';
 import { generateTTS, getAudioDuration, ttsEvents, initTTS } from './services/ttsService';
 import { renderPdfFirstPageToImage, type RenderedPage } from './services/pdfService';
@@ -20,7 +21,7 @@ import { Download, Loader2, RotateCcw, VolumeX, XCircle, Trash2, LayoutGrid, Lis
 import backgroundImage from './assets/images/background.png';
 import { useModal } from './context/ModalContext';
 import { BrowserVideoRenderer, videoEvents } from './services/BrowserVideoRenderer';
-import { analyzeVideoNarrationWithGemini } from './services/aiService';
+import { analyzeVideoNarrationWithGemini } from './services/geminiFileAnalysisService';
 import { RuntimeResourceModal } from './components/RuntimeResourceModal';
 import { WebGPUInstructionsModal } from './components/WebGPUInstructionsModal';
 import { BackgroundDownloadProvider } from './components/BackgroundDownloadProvider';

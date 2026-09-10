@@ -86,7 +86,6 @@ export async function renderPdfFirstPageToImage(file: File): Promise<string> {
 export async function renderPdfToImages(file: File): Promise<RenderedPage[]> {
   // Generate PDF fingerprint for OCR caching
   const fingerprint = await generatePDFFingerprint(file);
-  console.log(`[PDF Service] Generated fingerprint: ${fingerprint.substring(0, 8)}...`);
 
   // Clean expired cache entries (run occasionally)
   await cleanExpiredOCRCache();
@@ -170,18 +169,14 @@ export async function renderPdfToImages(file: File): Promise<RenderedPage[]> {
 
     // Check if OCR is needed (image-based PDF or insufficient text)
     if (needsOCR(extractedText)) {
-      console.log(`[PDF Service] Page ${i}: No text detected, using OCR...`);
-
       try {
         // Check cache first
         const cachedText = await getCachedOCRText(fingerprint, i);
         if (cachedText !== null) {
-          console.log(`[PDF Service] Using cached OCR text for page ${i}`);
           extractedText = cachedText;
         } else {
           // Perform OCR
           if (globalSettings?.useOpenAIOcr) {
-            console.log(`[PDF Service] Using OpenAI for OCR on page ${i}`);
             // Type-cast because LLMSettings overlaps with GlobalSettings for the needed properties
             extractedText = await performOpenAIOcr(canvas, {
               apiKey: globalSettings.openaiApiKey || '',
@@ -198,7 +193,6 @@ export async function renderPdfToImages(file: File): Promise<RenderedPage[]> {
 
           // Cache the result
           await setCachedOCRText(fingerprint, i, extractedText);
-          console.log(`[PDF Service] Cached OCR text for page ${i}`);
         }
 
         // Check if OCR actually found text

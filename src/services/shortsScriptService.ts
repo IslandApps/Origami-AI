@@ -721,11 +721,11 @@ N. IMAGE: <the image prompt>
 No commentary, no headers, no markdown, no blank lines between scenes.`;
 
 const parseCombinedAttempt = (raw: string): { narrationByIndex: Map<number, string>; imageByIndex: Map<number, string> } => {
-  if (import.meta.env.DEV) console.log('[Shorts Debug] Raw LLM Output:', JSON.stringify(raw));
+  if (import.meta.env.DEV) console.warn('[Shorts Debug] Raw LLM Output:', JSON.stringify(raw));
   const rawClean = stripWrapper(raw);
-  if (import.meta.env.DEV) console.log('[Shorts Debug] Cleaned Output:', JSON.stringify(rawClean));
+  if (import.meta.env.DEV) console.warn('[Shorts Debug] Cleaned Output:', JSON.stringify(rawClean));
   const lines = rawClean.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
-  if (import.meta.env.DEV) console.log('[Shorts Debug] Lines to parse:', lines);
+  if (import.meta.env.DEV) console.warn('[Shorts Debug] Lines to parse:', lines);
 
   const narrationByIndex = new Map<number, string>();
   const imageByIndex = new Map<number, string>();
@@ -736,7 +736,7 @@ const parseCombinedAttempt = (raw: string): { narrationByIndex: Map<number, stri
     const nMatch = line.match(/^(?:.*?(?:scene|shot|clip)\s*)?(\d+)?.*?NARRATION.*?[:.\-–]\s*(.+)$/i);
     if (nMatch) {
       currentScene = nMatch[1] ? Number(nMatch[1]) : currentScene + 1;
-      if (import.meta.env.DEV) console.log(`[Shorts Debug] Matched NARRATION line for scene ${currentScene}:`, line);
+      if (import.meta.env.DEV) console.warn(`[Shorts Debug] Matched NARRATION line for scene ${currentScene}:`, line);
       narrationByIndex.set(currentScene, normalizeNarrationLine(nMatch[2]));
       continue;
     }
@@ -744,7 +744,7 @@ const parseCombinedAttempt = (raw: string): { narrationByIndex: Map<number, stri
     const iMatch = line.match(/^(?:.*?(?:scene|shot|clip)\s*)?(\d+)?.*?(?:IMAGE|VISUAL|PROMPT).*?[:.\-–]\s*(.+)$/i);
     if (iMatch) {
       const sceneNum = iMatch[1] ? Number(iMatch[1]) : currentScene;
-      if (import.meta.env.DEV) console.log(`[Shorts Debug] Matched IMAGE line for scene ${sceneNum}:`, line);
+      if (import.meta.env.DEV) console.warn(`[Shorts Debug] Matched IMAGE line for scene ${sceneNum}:`, line);
       imageByIndex.set(sceneNum, stripLineDecoration(iMatch[2]));
       continue;
     }
@@ -752,12 +752,12 @@ const parseCombinedAttempt = (raw: string): { narrationByIndex: Map<number, stri
 
   // Fallback if keywords weren't used at all: assume they come in narration/image pairs
   if (narrationByIndex.size === 0) {
-    if (import.meta.env.DEV) console.log('[Shorts Debug] Keyword parsing failed. Attempting heuristic pairing fallback...');
+    if (import.meta.env.DEV) console.warn('[Shorts Debug] Keyword parsing failed. Attempting heuristic pairing fallback...');
     const validLines = lines.filter((l) => !/^(?:note|explanation|disclaimer|title)/i.test(l));
-    if (import.meta.env.DEV) console.log('[Shorts Debug] Filtered valid lines for pairing:', validLines);
+    if (import.meta.env.DEV) console.warn('[Shorts Debug] Filtered valid lines for pairing:', validLines);
     let sceneCounter = 1;
     for (let i = 0; i < validLines.length; i += 2) {
-      if (import.meta.env.DEV) console.log(`[Shorts Debug] Pairing scene ${sceneCounter} -> Narration:`, validLines[i], '| Image:', validLines[i + 1]);
+      if (import.meta.env.DEV) console.warn(`[Shorts Debug] Pairing scene ${sceneCounter} -> Narration:`, validLines[i], '| Image:', validLines[i + 1]);
       narrationByIndex.set(sceneCounter, normalizeNarrationLine(validLines[i]));
       if (validLines[i + 1]) {
         imageByIndex.set(sceneCounter, stripLineDecoration(validLines[i + 1]));
@@ -766,7 +766,7 @@ const parseCombinedAttempt = (raw: string): { narrationByIndex: Map<number, stri
     }
   }
 
-  if (import.meta.env.DEV) console.log('[Shorts Debug] Final Narration size:', narrationByIndex.size, 'Image size:', imageByIndex.size);
+  if (import.meta.env.DEV) console.warn('[Shorts Debug] Final Narration size:', narrationByIndex.size, 'Image size:', imageByIndex.size);
   return { narrationByIndex, imageByIndex };
 };
 
@@ -803,10 +803,10 @@ Write exactly ${sceneCount} scenes matching the scene plan above, each as a NARR
   };
 
   const parsed = await attempt(0.8, false);
-  if (import.meta.env.DEV) console.log('[Shorts Debug] Parsed result from attempt:', parsed);
+  if (import.meta.env.DEV) console.warn('[Shorts Debug] Parsed result from attempt:', parsed);
 
   if (!parsed || parsed.narrationByIndex.size === 0) {
-    if (import.meta.env.DEV) console.log('[Shorts Debug] generateScriptCombined returning null because narration size is 0 or parsed is null.');
+    if (import.meta.env.DEV) console.warn('[Shorts Debug] generateScriptCombined returning null because narration size is 0 or parsed is null.');
     return null;
   }
 
@@ -814,9 +814,9 @@ Write exactly ${sceneCount} scenes matching the scene plan above, each as a NARR
   const rawNarration = rawIndices.map((i) => parsed!.narrationByIndex.get(i)!);
   const rawImages = rawIndices.map((i) => parsed!.imageByIndex.get(i));
 
-  if (import.meta.env.DEV) console.log('[Shorts Debug] Before fitToCount. Raw Narration:', rawNarration, 'Raw Images:', rawImages);
+  if (import.meta.env.DEV) console.warn('[Shorts Debug] Before fitToCount. Raw Narration:', rawNarration, 'Raw Images:', rawImages);
   const narrationLines = fitToCount(rawNarration, sceneCount);
-  if (import.meta.env.DEV) console.log('[Shorts Debug] After fitToCount. Narration Lines:', narrationLines);
+  if (import.meta.env.DEV) console.warn('[Shorts Debug] After fitToCount. Narration Lines:', narrationLines);
   
   const imagePrompts = narrationLines.map((line, outIdx) => {
     // If this is a padded line beyond the original output, or the original had no image prompt,
@@ -849,9 +849,9 @@ export const generateShortsScript = async (
   const scoped = { ...req, topic };
   const beats = buildBeats(topic, req.targetDurationSec);
 
-  if (import.meta.env.DEV) console.log('[Shorts Debug] generateShortsScript started for topic:', topic);
+  if (import.meta.env.DEV) console.warn('[Shorts Debug] generateShortsScript started for topic:', topic);
   const combined = await generateScriptCombined(scoped, beats, opts);
-  if (import.meta.env.DEV) console.log('[Shorts Debug] generateShortsScript got combined result:', combined);
+  if (import.meta.env.DEV) console.warn('[Shorts Debug] generateShortsScript got combined result:', combined);
 
   let narrationLines: string[];
   let resolvedImagePrompts: string[];
@@ -860,7 +860,7 @@ export const generateShortsScript = async (
     narrationLines = combined.narrationLines;
     resolvedImagePrompts = combined.imagePrompts;
   } else {
-    if (import.meta.env.DEV) console.log('[Shorts Debug] generateScriptCombined returned null, falling back to two-pass generation.');
+    if (import.meta.env.DEV) console.warn('[Shorts Debug] generateScriptCombined returned null, falling back to two-pass generation.');
     narrationLines = await generateNarrationLines(scoped, beats, opts);
     resolvedImagePrompts = await generateImagePrompts(narrationLines, scoped, opts);
   }

@@ -409,11 +409,13 @@ export const ConvertStudioPage: React.FC = () => {
     audioTarget,
     backgroundColor,
     bitrate,
+    enginePending,
     imageQuality,
     imageTarget,
     isBackgroundDownloadActive,
     isRunning,
     pending,
+    showConfirm,
     tab,
     updateItem,
   ]);

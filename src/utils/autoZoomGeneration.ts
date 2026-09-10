@@ -3,7 +3,7 @@
  * Generates zoom keyframes for intelligent zoom-out during idle periods
  */
 
-import type { ZoomKeyframe, AutoZoomConfig } from '../components/SlideEditor';
+import type { ZoomKeyframe, AutoZoomConfig } from '../types/slides';
 import {
   detectIdlePeriods,
   mergeIdlePeriods,

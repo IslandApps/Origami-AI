@@ -11,6 +11,8 @@
     "dev": "tsx watch --ignore 'node_modules/**' --ignore 'dist/**' --ignore 'public/**' --ignore '.git/**' server.ts",
     "build": "vite build",
     "lint": "eslint .",
+    "typecheck": "tsc --build",
+    "check": "concurrently -n typecheck,lint -c blue,yellow \"npm:typecheck\" \"npm:lint\"",
     "postinstall": "echo 'postinstall script skipped (scripts/ removed)'; exit 0",
     "preview": "vite preview",
     "pages:dev": "wrangler pages dev",

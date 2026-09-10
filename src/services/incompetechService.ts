@@ -30,8 +30,6 @@ async function loadBundledLibrary(): Promise<IncompetechTrackWithDuration[]> {
     return bundledLibraryCache;
   }
 
-  console.log('[Incompetech] Loading bundled music library...');
-
   try {
     const response = await fetch('/music-library.json');
     if (!response.ok) {
@@ -39,7 +37,6 @@ async function loadBundledLibrary(): Promise<IncompetechTrackWithDuration[]> {
     }
 
     const tracks: IncompetechTrack[] = await response.json();
-    console.log(`[Incompetech] Loaded ${tracks.length} tracks from bundle`);
 
     // Deduplicate tracks by UUID (some tracks appear multiple times in the JSON)
     const uniqueTracksMap = new Map<string, IncompetechTrack>();
@@ -49,7 +46,6 @@ async function loadBundledLibrary(): Promise<IncompetechTrackWithDuration[]> {
       }
     }
     const uniqueTracks = Array.from(uniqueTracksMap.values());
-    console.log(`[Incompetech] Deduplicated to ${uniqueTracks.length} unique tracks`);
 
     // Add duration in seconds for easier filtering
     const tracksWithDuration: IncompetechTrackWithDuration[] = uniqueTracks.map((track) => ({
@@ -103,7 +99,6 @@ export function getMusicStreamUrl(filename: string): string {
  * Load music library from bundled data
  */
 export async function fetchMusicLibrary(): Promise<IncompetechTrackWithDuration[]> {
-  console.log('[Incompetech] Loading music library...');
   return loadBundledLibrary();
 }
 
@@ -177,7 +172,6 @@ export async function downloadTrack(
 ): Promise<Blob> {
   // Use proxy URL to bypass CORS (client-side fetch is blocked by browser CORS policy)
   const url = `${MUSIC_PROXY_URL}${encodeURIComponent(filename)}`;
-  console.log(`[Incompetech] Downloading track: ${filename}`);
 
   let retries = 0;
   const maxRetries = 3;
@@ -219,7 +213,6 @@ export async function downloadTrack(
       }
 
       const blob = new Blob(chunks, { type: 'audio/mpeg' });
-      console.log(`[Incompetech] Downloaded ${filename}: ${blob.size} bytes`);
       return blob;
     } catch (error) {
       retries++;

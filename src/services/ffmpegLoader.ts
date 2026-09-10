@@ -31,8 +31,6 @@ export const getFFmpeg = async (): Promise<FFmpeg> => {
   if (loadPromise) return loadPromise;
 
   loadPromise = (async () => {
-    console.log('[FFmpeg] Loading core from CDN...');
-
     const { FFmpeg } = await import('@ffmpeg/ffmpeg');
     const { toBlobURL } = await import('@ffmpeg/util');
 
@@ -47,8 +45,6 @@ export const getFFmpeg = async (): Promise<FFmpeg> => {
       && (globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated === true;
 
     const loadCore = async (cdnBase: string, multithreaded: boolean) => {
-      console.log(`[FFmpeg] Fetching ${multithreaded ? 'multithreaded' : 'single-threaded'} core from CDN:`, cdnBase);
-
       // toBlobURL handles caching and creates blob URLs for us
       const coreURL = await toBlobURL(`${cdnBase}/ffmpeg-core.js`, 'text/javascript');
       const wasmURL = await toBlobURL(`${cdnBase}/ffmpeg-core.wasm`, 'application/wasm');
@@ -75,11 +71,9 @@ export const getFFmpeg = async (): Promise<FFmpeg> => {
           await loadCore(ST_CORE_BASE, false);
         }
       } else {
-        console.log('[FFmpeg] Not cross-origin isolated; using single-threaded core.');
         await loadCore(ST_CORE_BASE, false);
       }
 
-      console.log('[FFmpeg] Core loaded successfully from CDN');
       instance = ffmpeg;
 
       emitVideoProgress({ progress: 100, status: 'FFmpeg ready' });

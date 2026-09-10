@@ -99,8 +99,6 @@ function getWorker(quantization: 'q8' | 'q4' = 'q8'): Worker {
           req.reject(new Error(error));
           pendingRequests.delete(id);
         }
-      } else if (type === 'status') {
-         console.log("[TTS Service]", e.data.message);
       } else if (type === 'progress') {
          // Dispatch progress event
          const event = new CustomEvent<ProgressEventDetail>('tts-progress', { 

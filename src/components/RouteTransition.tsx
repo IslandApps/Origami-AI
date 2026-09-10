@@ -14,8 +14,11 @@ export const RouteTransition: React.FC<{ children: React.ReactNode }> = ({ child
   // Decided once per route change so later re-renders can't restart the animation.
   // Keyed on pathname (not location.key) so navigating to the route you're
   // already on doesn't remount the page and throw away its state.
+  // location.pathname isn't read in the callback, but it's the change we want
+  // to re-decide on — the eslint-disable documents that this is intentional.
   const animationClass = React.useMemo(
     () => (isViewTransitionInFlight() ? '' : 'origami-route-enter'),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [location.pathname]
   );
 

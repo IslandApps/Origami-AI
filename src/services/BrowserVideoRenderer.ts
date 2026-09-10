@@ -1,9 +1,20 @@
 import type { FFmpeg } from '@ffmpeg/ffmpeg';
 import { generateAutoZoomKeyframes } from '../utils/autoZoomGeneration';
 import { easingFunctions, type EasingType } from '../utils/easingFunctions';
-import type { ZoomKeyframe, AutoZoomConfig } from '../components/SlideEditor';
+import type { ZoomKeyframe, AutoZoomConfig } from '../types/slides';
 import { getFFmpeg, resetFFmpeg } from './ffmpegLoader';
 import { videoEvents, type VideoProgressEventDetail } from './videoEvents';
+import { getSupportedVideoEncoderConfig, waitForEncoderQueueBelow, concatUint8Arrays } from './webCodecsEncoding';
+import { audioBufferToWav, decodeAudioBuffer } from './audioMixing';
+import {
+  resolveOutputDimensions,
+  buildZoompanFilter,
+  buildSlideVideoFilters,
+  buildSlideAudioFilters,
+  buildTransitionChain,
+  buildSpeechOutputFilters,
+  buildMusicMixFilters,
+} from './ffmpegFilterGraph';
 
 interface Slide {
   dataUrl?: string;
@@ -727,158 +738,6 @@ export class BrowserVideoRenderer {
     return { items, totalDuration: start };
   }
 
-  private async getSupportedVideoEncoderConfig(width: number, height: number, fps: number): Promise<VideoEncoderConfig> {
-    // Pick the H.264 level from the frame size. The level is the last byte of the
-    // codec string (hex). Level 3.1 (0x1F) maxes out at 1280x720; 1080p needs at
-    // least level 4.0 (0x28). Using a level that's too low makes isConfigSupported
-    // reject the config, which previously forced 1080p off WebCodecs entirely and
-    // onto the much slower single-threaded ffmpeg.wasm fallback.
-    const macroblocks = Math.ceil(width / 16) * Math.ceil(height / 16);
-    const levelHex =
-      macroblocks > 8192 ? '33' :   // level 5.1 (4K and above headroom)
-      macroblocks > 3600 ? '28' :   // level 4.0 (covers 1080p@30)
-      '1F';                          // level 3.1 (720p and below)
-
-    const baselineCodec = `avc1.42E0${levelHex}`; // Baseline profile
-    const mainCodec = `avc1.4D40${levelHex}`;     // Main profile
-
-    const base = {
-      width,
-      height,
-      bitrate: width >= 1920 ? 10_000_000 : 5_000_000,
-      framerate: fps,
-      avc: { format: 'annexb' as const },
-      bitrateMode: 'variable' as const,
-      latencyMode: 'quality' as const,
-      alpha: 'discard' as const
-    };
-
-    // Try hardware first (fastest), then no-preference, then software as a last
-    // resort. Within each tier prefer Main profile, falling back to Baseline.
-    const candidates: VideoEncoderConfig[] = [
-      { ...base, codec: mainCodec, hardwareAcceleration: 'prefer-hardware' },
-      { ...base, codec: baselineCodec, hardwareAcceleration: 'prefer-hardware' },
-      { ...base, codec: mainCodec, hardwareAcceleration: 'no-preference' },
-      { ...base, codec: baselineCodec, hardwareAcceleration: 'no-preference' },
-      { ...base, codec: mainCodec, hardwareAcceleration: 'prefer-software' },
-      { ...base, codec: baselineCodec, hardwareAcceleration: 'prefer-software' }
-    ];
-
-    for (const candidate of candidates) {
-      const support = await VideoEncoder.isConfigSupported(candidate);
-      if (support.supported && support.config) {
-        console.log(
-          `[WebCodecs] Selected encoder ${width}x${height}: codec=${candidate.codec} ` +
-          `hwAccel=${candidate.hardwareAcceleration} (requested). ` +
-          `If a higher-resolution render is disproportionately slow, the browser is ` +
-          `likely satisfying "no-preference"/"prefer-software" with a CPU encoder.`
-        );
-        return support.config;
-      }
-    }
-
-    throw new Error('No supported H.264 WebCodecs configuration was found');
-  }
-
-  private async waitForEncoderQueueBelow(encoder: VideoEncoder, maxQueueSize: number, signal?: AbortSignal): Promise<void> {
-    while (encoder.encodeQueueSize > maxQueueSize) {
-      this.ensureNotAborted(signal);
-      await new Promise<void>((resolve) => {
-        const onDequeue = () => {
-          encoder.removeEventListener('dequeue', onDequeue);
-          resolve();
-        };
-
-        encoder.addEventListener('dequeue', onDequeue, { once: true });
-
-        window.setTimeout(() => {
-          encoder.removeEventListener('dequeue', onDequeue);
-          resolve();
-        }, 16);
-      });
-    }
-  }
-
-  private concatUint8Arrays(parts: Uint8Array[]): Uint8Array {
-    const totalLength = parts.reduce((sum, part) => sum + part.byteLength, 0);
-    const merged = new Uint8Array(totalLength);
-    let offset = 0;
-
-    for (const part of parts) {
-      merged.set(part, offset);
-      offset += part.byteLength;
-    }
-
-    return merged;
-  }
-
-  private audioBufferToWav(buffer: AudioBuffer): Uint8Array {
-    const numberOfChannels = Math.min(2, buffer.numberOfChannels);
-    const sampleRate = buffer.sampleRate;
-    const bytesPerSample = 2;
-    const blockAlign = numberOfChannels * bytesPerSample;
-    const dataSize = buffer.length * blockAlign;
-    const wavBuffer = new ArrayBuffer(44 + dataSize);
-    const view = new DataView(wavBuffer);
-
-    const writeString = (offset: number, value: string) => {
-      for (let i = 0; i < value.length; i++) {
-        view.setUint8(offset + i, value.charCodeAt(i));
-      }
-    };
-
-    writeString(0, 'RIFF');
-    view.setUint32(4, 36 + dataSize, true);
-    writeString(8, 'WAVE');
-    writeString(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, numberOfChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * blockAlign, true);
-    view.setUint16(32, blockAlign, true);
-    view.setUint16(34, bytesPerSample * 8, true);
-    writeString(36, 'data');
-    view.setUint32(40, dataSize, true);
-
-    const channels = Array.from({ length: numberOfChannels }, (_, index) => buffer.getChannelData(index));
-    let offset = 44;
-    for (let sampleIndex = 0; sampleIndex < buffer.length; sampleIndex++) {
-      for (let channelIndex = 0; channelIndex < numberOfChannels; channelIndex++) {
-        const sample = this.clamp(channels[channelIndex][sampleIndex] || 0, -1, 1);
-        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-        offset += 2;
-      }
-    }
-
-    return new Uint8Array(wavBuffer);
-  }
-
-  private async decodeAudioBuffer(
-    source: string | Blob,
-    context: OfflineAudioContext,
-    cache: Map<string, AudioBuffer>
-  ): Promise<AudioBuffer> {
-    const cacheKey = typeof source === 'string' ? source : `blob:${source.size}:${source.type}`;
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    const arrayBuffer = typeof source === 'string'
-      ? await fetch(source).then(async (response) => {
-          if (!response.ok) {
-            throw new Error(`Failed to load audio asset: ${response.status} ${response.statusText}`);
-          }
-          return response.arrayBuffer();
-        })
-      : await source.arrayBuffer();
-
-    const decoded = await context.decodeAudioData(arrayBuffer.slice(0));
-    cache.set(cacheKey, decoded);
-    return decoded;
-  }
-
   private async renderAudioMixToWav(
     slides: Slide[],
     totalDuration: number,
@@ -904,7 +763,7 @@ export class BrowserVideoRenderer {
 
       if (!slide.isTtsDisabled && timedScenes.length > 0) {
         for (const scene of timedScenes) {
-          const audioBuffer = await this.decodeAudioBuffer(scene.audioUrl!, audioContext, audioCache);
+          const audioBuffer = await decodeAudioBuffer(scene.audioUrl!, audioContext, audioCache);
           const source = audioContext.createBufferSource();
           source.buffer = audioBuffer;
           source.connect(speechGain);
@@ -918,7 +777,7 @@ export class BrowserVideoRenderer {
           );
         }
       } else if (!slide.isTtsDisabled && slide.audioUrl) {
-        const audioBuffer = await this.decodeAudioBuffer(slide.audioUrl, audioContext, audioCache);
+        const audioBuffer = await decodeAudioBuffer(slide.audioUrl, audioContext, audioCache);
         const source = audioContext.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(speechGain);
@@ -929,7 +788,7 @@ export class BrowserVideoRenderer {
     }
 
     if ((musicSettings?.blob || musicSettings?.url) && totalDuration > 0) {
-      const musicBuffer = await this.decodeAudioBuffer(musicSettings.blob ?? musicSettings.url!, audioContext, audioCache);
+      const musicBuffer = await decodeAudioBuffer(musicSettings.blob ?? musicSettings.url!, audioContext, audioCache);
       if (musicBuffer.duration > 0) {
         let musicOffset = 0;
         while (musicOffset < totalDuration) {
@@ -948,7 +807,7 @@ export class BrowserVideoRenderer {
     }
 
     const rendered = await audioContext.startRendering();
-    return this.audioBufferToWav(rendered);
+    return audioBufferToWav(rendered);
   }
 
   private async encodeImageTimelineToH264(
@@ -972,7 +831,12 @@ export class BrowserVideoRenderer {
       throw new Error('Failed to create output canvas for WebCodecs rendering');
     }
 
-    const config = await this.getSupportedVideoEncoderConfig(width, height, fps);
+    const config = await getSupportedVideoEncoderConfig(
+      width,
+      height,
+      fps,
+      width >= 1920 ? 10_000_000 : 5_000_000
+    );
     const chunks: Uint8Array[] = [];
     let encoderError: Error | null = null;
 
@@ -991,7 +855,6 @@ export class BrowserVideoRenderer {
     const totalFrames = Math.max(1, Math.ceil(totalDuration * fps));
     const maxQueueSize = 8;
     const flushIntervalFrames = Math.max(fps * 2, 60);
-    const encodeStart = performance.now();
 
     for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
       this.ensureNotAborted(signal);
@@ -1093,7 +956,7 @@ export class BrowserVideoRenderer {
         timestamp: Math.round(timeSeconds * 1_000_000),
         duration: Math.round((1 / fps) * 1_000_000)
       });
-      await this.waitForEncoderQueueBelow(encoder, maxQueueSize, signal);
+      await waitForEncoderQueueBelow(encoder, maxQueueSize, signal, (s) => this.ensureNotAborted(s));
       encoder.encode(frame, { keyFrame: frameIndex === 0 || frameIndex % (fps * 2) === 0 });
       frame.close();
 
@@ -1115,15 +978,7 @@ export class BrowserVideoRenderer {
       throw encoderError;
     }
 
-    const encodeMs = Math.round(performance.now() - encodeStart);
-    console.log(
-      `[WebCodecs] Encoded ${totalFrames} frames at ${width}x${height} in ${encodeMs}ms ` +
-      `(${(encodeMs / Math.max(1, totalFrames)).toFixed(1)} ms/frame). ` +
-      `Expect ~2-3x ms/frame between 720p and 1080p; a much larger gap means the ` +
-      `1080p path lost hardware acceleration or fell back to ffmpeg.`
-    );
-
-    return this.concatUint8Arrays(chunks);
+    return concatUint8Arrays(chunks);
   }
 
   private async muxEncodedVideoWithAudio(
@@ -1213,7 +1068,12 @@ export class BrowserVideoRenderer {
       const height = resolution === '720p' ? 720 : 1080;
 
       try {
-        await this.getSupportedVideoEncoderConfig(width, height, fps);
+        await getSupportedVideoEncoderConfig(
+          width,
+          height,
+          fps,
+          width >= 1920 ? 10_000_000 : 5_000_000
+        );
       } catch (error) {
         console.warn(
           `[WebCodecs] No stable encoder config for ${width}x${height} — FALLING BACK TO ` +
@@ -1316,7 +1176,6 @@ export class BrowserVideoRenderer {
     // Attach listeners
     ffmpeg.on('log', ({ message }) => {
       if (onLog) onLog(message);
-      console.log('[FFmpeg Log]:', message);
     });
 
     ffmpeg.on('progress', ({ progress, time }) => {
@@ -1351,7 +1210,7 @@ export class BrowserVideoRenderer {
         throw new Error('Render aborted');
       }
       signal.addEventListener('abort', () => {
-        console.log('[FFmpeg] Render aborted by user. Terminating worker...');
+        console.warn('[FFmpeg] Render aborted by user. Terminating worker...');
         this.aborted = true;
         try {
           this.ffmpeg?.terminate();
@@ -1384,23 +1243,7 @@ export class BrowserVideoRenderer {
 
       // Input Arguments Construction
       const inputArgs: string[] = [];
-      const baseWidth = resolution === '720p' ? 1280 : 1920;
-      const baseHeight = resolution === '720p' ? 720 : 1080;
-      
-      let VIDEO_WIDTH = baseWidth;
-      let VIDEO_HEIGHT = baseHeight;
-      const ar = aspectRatio;
-
-      if (ar === '9:16') {
-        VIDEO_WIDTH = baseHeight;
-        VIDEO_HEIGHT = baseWidth;
-      } else if (ar === '1:1') {
-        VIDEO_WIDTH = baseHeight;
-        VIDEO_HEIGHT = baseHeight;
-      } else if (ar === '4:3') {
-        VIDEO_WIDTH = Math.round(baseHeight * (4 / 3));
-        VIDEO_HEIGHT = baseHeight;
-      }
+      const { width: VIDEO_WIDTH, height: VIDEO_HEIGHT } = resolveOutputDimensions(resolution, aspectRatio);
 
       for (let i = 0; i < renderSlides.length; i++) {
         const slide = renderSlides[i];
@@ -1515,215 +1358,63 @@ export class BrowserVideoRenderer {
         // Use a conservative FFmpeg expression set here; the more complex easing expression
         // path was emitting invalid filter syntax for video slides and breaking exports.
         if (activeZooms && activeZooms.length > 0) {
-          const zExprs: string[] = [];
-          const xExprs: string[] = [];
-          const yExprs: string[] = [];
-          const sortedZooms = [...activeZooms].sort((a, b) => a.timestampStartSeconds - b.timestampStartSeconds);
-          const zoomTimelineEnd = Math.max(
-            0.05,
-            slide.type === 'video'
-              ? (slide.mediaDuration ?? duration)
-              : duration
-          );
-
-          for (let zoomIndex = 0; zoomIndex < sortedZooms.length; zoomIndex++) {
-            const z = sortedZooms[zoomIndex];
-            const t1 = z.timestampStartSeconds;
-            const nextZoom = sortedZooms[zoomIndex + 1];
-            const fallbackEnd = t1 + Math.max(z.durationSeconds, 1);
-            const naturalEnd = nextZoom ? nextZoom.timestampStartSeconds : Math.max(zoomTimelineEnd, fallbackEnd);
-            const t2 = Math.max(t1 + 0.001, naturalEnd);
-
-            zExprs.push(`if(between(it,${t1},${t2}),${z.zoomLevel}`);
-
-            let txExpr = `${z.targetX ?? 0.5}`;
-            let tyExpr = `${z.targetY ?? 0.5}`;
-
-            if (z.type === 'cursor' && slide.cursorTrack && slide.cursorTrack.length > 0) {
-              const track = slide.cursorTrack;
-              const samplesX: string[] = [];
-              const samplesY: string[] = [];
-              const step = 0.05;
-              const sampleEnd = Math.min(t2, Math.max(zoomTimelineEnd, t1 + step));
-              
-              const getCursorAtTime = (timeSeconds: number) => {
-                const timeMs = timeSeconds * 1000;
-                const trackIndex = track.findIndex(c => c.timeMs >= timeMs);
-
-                if (trackIndex === 0) return track[0];
-                if (trackIndex === -1) return track[track.length - 1];
-
-                const before = track[trackIndex - 1];
-                const after = track[trackIndex];
-
-                const delta = Math.max(1, after.timeMs - before.timeMs);
-                const progress = (timeMs - before.timeMs) / delta;
-                return {
-                  x: before.x + (after.x - before.x) * progress,
-                  y: before.y + (after.y - before.y) * progress,
-                };
-              };
-              
-              for (let t = t1; t < sampleEnd; t += step) {
-                const cp = getCursorAtTime(t);
-                samplesX.push(`if(between(it,${t},${t+step}),${cp.x}`);
-                samplesY.push(`if(between(it,${t},${t+step}),${cp.y}`);
-              }
-              const finalCp = track[track.length - 1];
-              txExpr = samplesX.join(',') + `,${finalCp.x}` + ')'.repeat(samplesX.length);
-              tyExpr = samplesY.join(',') + `,${finalCp.y}` + ')'.repeat(samplesY.length);
-            }
-
-            xExprs.push(`if(between(it,${t1},${t2}),${txExpr}`);
-            yExprs.push(`if(between(it,${t1},${t2}),${tyExpr}`);
-          }
-
-          const targetZ = zExprs.join(',') + ',1' + ')'.repeat(zExprs.length);
-          const targetX = xExprs.join(',') + ',0.5' + ')'.repeat(xExprs.length);
-          const targetY = yExprs.join(',') + ',0.5' + ')'.repeat(yExprs.length);
-
-          const zFormula = `max(1, pzoom + (${targetZ} - pzoom)*if(gt(${targetZ},pzoom),0.010,0.005))`;
-          const xFormula = `px + (((iw - iw/zoom)*${targetX}) - px)*0.005`;
-          const yFormula = `py + (((ih - ih/zoom)*${targetY}) - py)*0.005`;
-
           const zoomLabel = `vZoom_${i}`;
-          videoFilterParts.push(`[${baseVideoLabel}]zoompan=z='${zFormula}':x='${xFormula}':y='${yFormula}':d=1:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:fps=${FPS}[${zoomLabel}]`);
+          videoFilterParts.push(buildZoompanFilter({
+            zooms: activeZooms,
+            cursorTrack: slide.cursorTrack,
+            zoomTimelineEnd: Math.max(
+              0.05,
+              slide.type === 'video'
+                ? (slide.mediaDuration ?? duration)
+                : duration
+            ),
+            width: VIDEO_WIDTH,
+            height: VIDEO_HEIGHT,
+            fps: FPS,
+            inputLabel: baseVideoLabel,
+            outputLabel: zoomLabel,
+          }));
           baseVideoLabel = zoomLabel;
         }
 
         // Video Filter
-        const allTimedScenes = (slide.videoNarrationAnalysis?.scenes ?? [])
-          .filter(scene => Number.isFinite(scene.timestampStartSeconds) && Number.isFinite(scene.durationSeconds) && Number.isFinite(scene.effectiveDurationSeconds))
-          .sort((a, b) => a.effectiveStartSeconds - b.effectiveStartSeconds);
-
-        if (slide.type === 'video' && allTimedScenes.length > 0) {
-          const sceneLabels: string[] = [];
-
-          for (let j = 0; j < allTimedScenes.length; j++) {
-            const scene = allTimedScenes[j];
-            const originalStart = Math.max(0, scene.timestampStartSeconds || 0);
-            const originalDuration = Math.max(0.05, scene.durationSeconds || 0.05);
-            const originalEnd = originalStart + originalDuration;
-            const effectiveDuration = Math.max(0.05, scene.effectiveDurationSeconds || originalDuration);
-
-            const baseLabel = `vSceneBase_${i}_${j}`;
-            const sceneLabel = `vScene_${i}_${j}`;
-            sceneLabels.push(sceneLabel);
-
-            videoFilterParts.push(
-              `[${baseVideoLabel}]trim=start=${originalStart}:end=${originalEnd},setpts=PTS-STARTPTS,fps=${FPS},format=yuv420p[${baseLabel}]`
-            );
-
-            if (effectiveDuration > originalDuration) {
-              const freezeDuration = Math.max(0.01, effectiveDuration - originalDuration);
-              videoFilterParts.push(
-                `[${baseLabel}]tpad=stop_mode=clone:stop_duration=${freezeDuration},trim=duration=${effectiveDuration},setpts=PTS-STARTPTS[${sceneLabel}]`
-              );
-            } else {
-              videoFilterParts.push(
-                `[${baseLabel}]trim=duration=${effectiveDuration},setpts=PTS-STARTPTS[${sceneLabel}]`
-              );
-            }
-          }
-
-          const stitchedLabel = `vStitched_${i}`;
-          if (sceneLabels.length === 1) {
-            videoFilterParts.push(`[${sceneLabels[0]}]copy[${stitchedLabel}]`);
-          } else {
-            const concatInputs = sceneLabels.map(label => `[${label}]`).join('');
-            videoFilterParts.push(`${concatInputs}concat=n=${sceneLabels.length}:v=1:a=0[${stitchedLabel}]`);
-          }
-
-          const renderedSceneEnd = allTimedScenes.reduce((max, scene) => {
-            return Math.max(max, (scene.effectiveStartSeconds || 0) + (scene.effectiveDurationSeconds || 0));
-          }, 0);
-          const tailPad = Math.max(0, duration - renderedSceneEnd);
-
-          if (tailPad > 0.01) {
-            videoFilterParts.push(`[${stitchedLabel}]tpad=stop_mode=clone:stop_duration=${tailPad},trim=duration=${duration},setpts=PTS-STARTPTS[${vLabel}]`);
-          } else {
-            videoFilterParts.push(`[${stitchedLabel}]trim=duration=${duration},setpts=PTS-STARTPTS[${vLabel}]`);
-          }
-        } else {
-          // No timed scenes just trim
-          let vFilter = `[${baseVideoLabel}]fps=${FPS},format=yuv420p`;
-          vFilter += `,trim=duration=${duration},setpts=PTS-STARTPTS[${vLabel}]`;
-          videoFilterParts.push(vFilter);
-        }
+        videoFilterParts.push(...buildSlideVideoFilters({
+          slideIndex: i,
+          inputLabel: baseVideoLabel,
+          outputLabel: vLabel,
+          duration,
+          fps: FPS,
+          isVideoSlide: slide.type === 'video',
+          scenes: slide.videoNarrationAnalysis?.scenes,
+        }));
         videoStreamLabels.push(vLabel);
 
         // Audio Filter
-        if (hasAudio) {
-          if (segmentAudioInputs.length > 0) {
-            const delayedLabels: string[] = [];
-
-            for (const seg of segmentAudioInputs) {
-              const delayMs = Math.max(0, Math.round(seg.startSeconds * 1000));
-              const outLabel = `${seg.label}_d`;
-              audioFilterParts.push(
-                `[${seg.idx}:a]aformat=sample_rates=44100:channel_layouts=stereo,atrim=duration=${seg.durationSeconds},adelay=${delayMs}|${delayMs}[${outLabel}]`
-              );
-              delayedLabels.push(`[${outLabel}]`);
-            }
-
-            const mixedLabel = `segMix_${i}`;
-            audioFilterParts.push(`${delayedLabels.join('')}amix=inputs=${delayedLabels.length}:duration=longest:dropout_transition=0[${mixedLabel}]`);
-            audioFilterParts.push(`[${mixedLabel}]aformat=sample_rates=44100:channel_layouts=stereo,apad,atrim=duration=${duration}[${aLabel}]`);
-            audioStreamLabels.push(aLabel);
-          } else if (singleAudioIdx !== null) {
-            audioFilterParts.push(`[${singleAudioIdx}:a]aformat=sample_rates=44100:channel_layouts=stereo,apad,atrim=duration=${duration}[${aLabel}]`);
-            audioStreamLabels.push(aLabel);
-          }
-        }
-
-        if (!hasAudio) {
-          // Silence
-          audioFilterParts.push(`anullsrc=r=44100:cl=stereo,atrim=duration=${duration}[${aLabel}]`);
-          audioStreamLabels.push(aLabel);
-        }
+        audioFilterParts.push(...buildSlideAudioFilters({
+          slideIndex: i,
+          outputLabel: aLabel,
+          duration,
+          segmentInputs: segmentAudioInputs,
+          singleAudioIdx: singleAudioIdx,
+          hasAudio,
+        }));
+        audioStreamLabels.push(aLabel);
       }
 
       // 5. Chain Transition Filters
       // Re-calculate durations as we need them for offset calculations
       const calcDuration = (s: Slide) => Math.max((s.duration || 5) + (s.postAudioDelay || 0), 0.1);
 
-      let lastV = videoStreamLabels[0];
-      let currentDuration = calcDuration(renderSlides[0]);
-
-      if (renderSlides.length > 1) {
-        for (let i = 1; i < renderSlides.length; i++) {
-          const slide = renderSlides[i];
-          const transType = slide.transition || 'fade';
-
-          let ffmpegTrans = 'fade';
-          switch (transType) {
-            case 'slide': ffmpegTrans = 'slideleft'; break;
-            case 'wipe': ffmpegTrans = 'wipeleft'; break;
-            case 'blur': ffmpegTrans = 'circleopen'; break;
-            case 'zoom': ffmpegTrans = 'zoomin'; break;
-            case 'none': ffmpegTrans = 'fade'; break;
-            default: ffmpegTrans = 'fade';
-          }
-
-          const dCurrent = calcDuration(slide);
-          const nextV = `vMerged${i}`;
-
-          if (transType === 'none') {
-            videoFilterParts.push(`[${lastV}][${videoStreamLabels[i]}]concat=n=2:v=1:a=0[${nextV}]`);
-          } else {
-            let transDur = 0.5;
-            const safeTransDur = Math.min(transDur, currentDuration / 2, dCurrent / 2);
-            transDur = Math.max(safeTransDur, 0.05);
-
-            const paddedPrev = `vPad${i}`;
-            videoFilterParts.push(`[${lastV}]tpad=stop_mode=clone:stop_duration=${transDur}[${paddedPrev}]`);
-            videoFilterParts.push(`[${paddedPrev}][${videoStreamLabels[i]}]xfade=transition=${ffmpegTrans}:duration=${transDur}:offset=${currentDuration}[${nextV}]`);
-          }
-
-          lastV = nextV;
-          currentDuration += dCurrent;
-        }
-      }
+      const {
+        filterParts: transitionFilterParts,
+        finalLabel: lastV,
+        totalDuration: currentDuration,
+      } = buildTransitionChain({
+        inputLabels: videoStreamLabels,
+        durations: renderSlides.map(calcDuration),
+        transitions: renderSlides.map(slide => slide.transition),
+      });
+      videoFilterParts.push(...transitionFilterParts);
 
       // Store the final calculated duration for progress reporting
       estimatedTotalDuration = currentDuration;
@@ -1737,20 +1428,14 @@ export class BrowserVideoRenderer {
         } else {
           videoFilterParts.push(`[${lastV}]format=yuv420p[vout_raw]`);
         }
-        if (audioStreamLabels.length === 1) {
-          audioFilterParts.push(`[${audioStreamLabels[0]}]volume=1.0[aout_speech]`);
-        } else {
-          const concatAudioInputs = audioStreamLabels.map(label => `[${label}]`).join('');
-          audioFilterParts.push(`${concatAudioInputs}concat=n=${audioStreamLabels.length}:v=0:a=1[aout_speech_concat]`);
-          audioFilterParts.push(`[aout_speech_concat]volume=1.0[aout_speech]`);
-        }
+        audioFilterParts.push(...buildSpeechOutputFilters(audioStreamLabels));
       } else {
         videoFilterParts.push(`color=black:${VIDEO_WIDTH}x${VIDEO_HEIGHT}:d=1[vout_raw]`);
         audioFilterParts.push(`anullsrc[aout_speech]`);
       }
 
       // Background Music
-      let finalAudioMap = '[aout_speech]';
+      let musicInputIdx: number | null = null;
       if (musicSettings?.url || musicSettings?.blob) {
         const musicFname = 'bg_music.mp3';
 
@@ -1768,17 +1453,15 @@ export class BrowserVideoRenderer {
 
         // Add music input
         inputArgs.push('-stream_loop', '-1', '-i', musicFname);
-        const musicIdx = currentInputIdx++;
-
-        audioFilterParts.push(`[aout_speech]volume=${ttsVolume}[speech_vol]`);
-        audioFilterParts.push(`[${musicIdx}:a]volume=${musicSettings.volume}[music_vol]`);
-        audioFilterParts.push(`[speech_vol][music_vol]amix=inputs=2:duration=first:dropout_transition=0.5[aout_mixed]`);
-        finalAudioMap = '[aout_mixed]';
-      } else {
-        // Ensure we have the mixed map even if no music
-        audioFilterParts.push(`[aout_speech]volume=${ttsVolume}[aout_mixed]`);
-        finalAudioMap = '[aout_mixed]';
+        musicInputIdx = currentInputIdx++;
       }
+
+      const { filterParts: musicMixFilterParts, finalAudioMap } = buildMusicMixFilters({
+        musicInputIdx,
+        ttsVolume,
+        musicVolume: musicSettings?.volume ?? 0,
+      });
+      audioFilterParts.push(...musicMixFilterParts);
 
       const complexFilter = [...videoFilterParts, ...audioFilterParts].join(';');
 

@@ -1,7 +1,7 @@
 import { db, storage } from '../config/firebase';
 import { collection, doc, setDoc, getDocs, getDoc, deleteDoc, updateDoc, query, limit } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject, listAll } from 'firebase/storage';
-import type { SlideData, MusicSettings } from '../components/SlideEditor';
+import type { SlideData, MusicSettings } from '../types/slides';
 import type { PersistedShortsProject } from './storage';
 
 /**

@@ -6,6 +6,9 @@ import { ModalProvider } from './components/ModalProvider'
 import { AuthProvider } from './context/AuthContext'
 
 if (import.meta.env.PROD) {
+  // Reassigning (not calling) these console methods to silence them in
+  // production; warn/error are intentionally left untouched.
+  /* eslint-disable no-console */
   const noop = () => {}
   console.log = noop
   console.info = noop
@@ -21,6 +24,7 @@ if (import.meta.env.PROD) {
   console.timeEnd = noop
   console.timeLog = noop
   console.clear = noop
+  /* eslint-enable no-console */
 }
 
 createRoot(document.getElementById('root')!).render(

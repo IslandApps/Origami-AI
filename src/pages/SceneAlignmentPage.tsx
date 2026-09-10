@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Clapperboard, Code2, Loader2, Sparkles, Check, X, Play, Pause, SkipBack, SkipForward, Maximize, ChevronUp, ChevronDown } from 'lucide-react';
 import backgroundImage from '../assets/images/background.jpg';
-import type { SlideData, VideoNarrationSceneTrack, VideoNarrationAnalysisData } from '../components/SlideEditor';
+import type { SlideData, VideoNarrationSceneTrack, VideoNarrationAnalysisData } from '../types/slides';
 import { useVideoSceneSync } from '../hooks/useVideoSceneSync';
 import { PageHeader } from '../components/PageHeader';
 
@@ -79,7 +79,7 @@ export const SceneAlignmentPage: React.FC<SceneAlignmentPageProps> = ({
   const [generatingSceneId, setGeneratingSceneId] = useState<string | null>(null);
 
   const analysis = slide.videoNarrationAnalysis;
-  const scenes = analysis?.scenes ?? [];
+  const scenes = useMemo(() => analysis?.scenes ?? [], [analysis]);
 
   const pageScrollRef = useRef<HTMLDivElement>(null);
   const playerPanelRef = useRef<HTMLDivElement>(null);
@@ -421,7 +421,6 @@ export const SceneAlignmentPage: React.FC<SceneAlignmentPageProps> = ({
             </button>
           </>
         )}
-        showGithub={false}
         showHelp={false}
         showSettings={false}
         className="mb-0 h-14 max-w-none border-b border-white/10 bg-black/30 backdrop-blur-sm"

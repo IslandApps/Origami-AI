@@ -133,7 +133,7 @@ export const ShortsStoryboard: React.FC<ShortsStoryboardProps> = ({
                     {
                       title: 'Clear generated visuals',
                       confirmText: 'Clear Visuals',
-                      type: 'danger'
+                      type: 'error'
                     }
                   );
                   if (confirmed) {

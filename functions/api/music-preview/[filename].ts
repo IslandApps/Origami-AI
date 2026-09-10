@@ -1,7 +1,6 @@
 export const onRequestGet: PagesFunction = async (context) => {
   const { params } = context;
   const filename = decodeURIComponent(params.filename as string);
-  console.log(`[Music Preview] Requested file: ${filename}`);
 
   if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
     return new Response('Invalid filename', { status: 400 });
@@ -12,7 +11,6 @@ export const onRequestGet: PagesFunction = async (context) => {
   }
 
   const musicUrl = `https://incompetech.com/music/royalty-free/mp3-royaltyfree/${encodeURIComponent(filename)}`;
-  console.log(`[Music Preview] Fetching from: ${musicUrl}`);
 
   try {
     const response = await fetch(musicUrl, {

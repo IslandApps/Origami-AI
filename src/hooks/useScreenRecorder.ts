@@ -438,7 +438,7 @@ export function useScreenRecorder(options: UseScreenRecorderOptions = {}) {
             throw normalizedError;
           }
 
-          console.info('Origami Chrome extension not available.', normalizedError);
+          console.warn('Origami Chrome extension not available.', normalizedError);
 
           const shouldFallbackToDisplay = await onExtensionUnavailable?.();
           if (shouldFallbackToDisplay) {
@@ -499,6 +499,7 @@ export function useScreenRecorder(options: UseScreenRecorderOptions = {}) {
     createDisplayStreamFromExtension,
     finalizeExternalStop,
     mixWithMicrophone,
+    onExtensionUnavailable,
     onRecordingPending,
     preserveCapturedTabAudioPlayback,
     stopExtensionSessionSafely,

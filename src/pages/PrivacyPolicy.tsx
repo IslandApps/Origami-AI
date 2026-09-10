@@ -25,7 +25,6 @@ export const PrivacyPolicy: React.FC = () => {
       <PageHeader
         title="Origami"
         showBack
-        showGithub={false}
         showHelp={false}
         showSettings={false}
       />

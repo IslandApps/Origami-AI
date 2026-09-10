@@ -114,8 +114,6 @@ function preprocessCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
 
   processedCtx.putImageData(processedImageData, 0, 0);
 
-  console.log(`[OCR Service] Applied Otsu thresholding (threshold: ${threshold})`);
-
   return processedCanvas;
 }
 
@@ -169,8 +167,6 @@ function upscaleForOCR(canvas: HTMLCanvasElement, scale: number = 2): HTMLCanvas
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(canvas, 0, 0, upscaled.width, upscaled.height);
-
-  console.log(`[OCR Service] Upscaled canvas by ${scale}x to ${upscaled.width}x${upscaled.height}`);
 
   return upscaled;
 }
@@ -234,13 +230,11 @@ function postProcessOCRText(rawText: string): string {
 export function needsOCR(extractedText: string): boolean {
   // Primary check: empty text
   if (extractedText.length === 0) {
-    console.log('[OCR Service] No text detected - OCR needed');
     return true;
   }
 
   // Secondary check: insufficient text
   if (extractedText.length < MIN_CHARS_FOR_OCR) {
-    console.log(`[OCR Service] Text too short (${extractedText.length} chars) - OCR needed`);
     return true;
   }
 
@@ -252,9 +246,7 @@ export function needsOCR(extractedText: string): boolean {
  */
 async function getTesseract(): Promise<TesseractModule> {
   if (!Tesseract) {
-    console.log('[OCR Service] Lazy loading Tesseract.js...');
     Tesseract = await import('tesseract.js');
-    console.log('[OCR Service] Tesseract.js loaded');
   }
   return Tesseract;
 }
@@ -283,8 +275,6 @@ async function initializeWorker(): Promise<void> {
         detail: { currentPage: 0, totalPages: 0, progress: 0, status: 'Initializing OCR...' }
       }));
 
-      console.log('[OCR Service] Initializing OCR worker...');
-
       const Tesseract = await getTesseract();
 
       // Create worker with optimized settings
@@ -311,9 +301,6 @@ async function initializeWorker(): Promise<void> {
         preserve_interword_spaces: '1',
       });
 
-      console.log('[OCR Service] OCR worker configured with optimized parameters');
-
-      console.log('[OCR Service] OCR worker initialized');
       ocrEvents.dispatchEvent(new CustomEvent<OCRProgressEventDetail>('init-complete', {
         detail: { currentPage: 0, totalPages: 0, progress: 100, status: 'OCR Ready' }
       }));
@@ -366,8 +353,6 @@ export async function performOCR(
       );
       return '';
     }
-
-    console.log(`[OCR Service] Performing OCR on page ${pageNumber}/${totalPages}`);
 
     // Store current page info for progress events
     (ocrEvents as any).currentPage = pageNumber;
@@ -437,7 +422,6 @@ export async function performOCR(
         }
       }));
 
-      console.log(`[OCR Service] OCR complete for page ${pageNumber}: ${text.length} chars (after post-processing)`);
       return text;
 
     } catch (error) {
@@ -464,7 +448,6 @@ export async function terminateOCRWorker(): Promise<void> {
   if (worker) {
     await worker.terminate();
     worker = null;
-    console.log('[OCR Service] OCR worker terminated');
   }
   initPromise = null;
   isInitializing = false;

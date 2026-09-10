@@ -87,7 +87,7 @@ export const AccountOverviewPage: React.FC = () => {
   if (!user) {
     return (
       <div className="min-h-screen bg-[#121215] text-white pt-8 pb-2 flex flex-col items-center justify-center px-4 sm:px-8">
-        <PageHeader title="Account Overview" showBack showGithub={false} showHelp={false} showSettings={false} />
+        <PageHeader title="Account Overview" showBack showHelp={false} showSettings={false} />
         <div className="text-center mt-20 flex flex-col items-center flex-grow">
           <h2 className="text-2xl font-bold text-white mb-4">You are not logged in</h2>
           <button onClick={() => navigate('/')} className="px-6 py-3 bg-cyan-500 hover:bg-cyan-600 rounded-xl text-white font-medium transition-colors">
@@ -111,7 +111,6 @@ export const AccountOverviewPage: React.FC = () => {
       <PageHeader
         title="Account Overview"
         showBack
-        showGithub={false}
         showHelp={false}
         showSettings={false}
       />

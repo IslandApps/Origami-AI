@@ -8,7 +8,7 @@ import { useModal } from '../context/ModalContext';
 import { useNotifications } from '../context/NotificationContext';
 
 import type { InitProgressReport } from '@mlc-ai/web-llm';
-import { DEFAULT_SYSTEM_PROMPT } from '../services/aiService';
+import { DEFAULT_SYSTEM_PROMPT } from '../services/prompts';
 import { isPollinationsTokenExpired, startPollinationsOAuth } from '../services/pollinationsAuth';
 
 
@@ -158,7 +158,7 @@ export const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
       const loaded = isWebLLMLoaded();
       setIsModelLoaded(loaded);
     }
-  }, [activeTab, isOpen, webGpuSupport, showAlert]);
+  }, [activeTab, isOpen, webGpuSupport, showAlert, webLlmModel]);
 
   // Reset progress when model changes (only when not actively downloading)
   useEffect(() => {

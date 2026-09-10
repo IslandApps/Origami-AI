@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Plus, Trash2, Navigation, Move, ZoomIn, ChevronDown, Zap } from 'lucide-react';
 
-import type { ZoomKeyframe, AutoZoomConfig } from './SlideEditor';
+import type { ZoomKeyframe, AutoZoomConfig } from '../types/slides';
 
 interface ZoomTimelineEditorProps {
   currentTime: number;

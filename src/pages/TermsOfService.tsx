@@ -26,7 +26,6 @@ export const TermsOfService: React.FC = () => {
       <PageHeader
         title="Origami"
         showBack
-        showGithub={false}
         showHelp={false}
         showSettings={false}
       />

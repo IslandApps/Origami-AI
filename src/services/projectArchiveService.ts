@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import type { SlideData, MusicSettings } from '../components/SlideEditor';
+import type { SlideData, MusicSettings } from '../types/slides';
 
 const FORMAT_MAGIC = 'origami-project';
 const FORMAT_VERSION = 1;

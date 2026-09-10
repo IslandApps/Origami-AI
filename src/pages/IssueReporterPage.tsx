@@ -19,7 +19,8 @@ import { usePageMeta } from '../hooks/usePageMeta';
 import { triggerBlobDownload } from '../utils/downloadBlob';
 import { useScreenRecorder } from '../hooks/useScreenRecorder';
 import { PageHeader } from '../components/PageHeader';
-import { analyzeIssueCaptureWithGemini, type IssueCaptureAnalysis } from '../services/aiService';
+import { analyzeIssueCaptureWithGemini } from '../services/geminiFileAnalysisService';
+import type { IssueCaptureAnalysis } from '../services/aiService';
 import type { GlobalSettings } from '../services/storage';
 import { loadGlobalSettings, saveGlobalSettings } from '../services/storage';
 

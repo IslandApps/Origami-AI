@@ -615,7 +615,6 @@ async function createServer() {
   // Proxy endpoint for music preview (bypasses CORS issues with incompetech.com)
   app.get('/api/music-preview/:filename', async (req, res) => {
     const filename = decodeURIComponent(req.params.filename);
-    console.log(`[Music Preview] Requested file: ${filename}`);
 
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
       console.error(`Music proxy blocked potential path traversal: ${filename}`);
@@ -627,9 +626,7 @@ async function createServer() {
       return res.status(400).send('Invalid filename');
     }
 
-    console.log(`[Music Preview] Validated filename, proxying to: ${filename}`);
     const musicUrl = `https://incompetech.com/music/royalty-free/mp3-royaltyfree/${encodeURIComponent(filename)}`;
-    console.log(`[Music Preview] Fetching from: ${musicUrl}`);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
@@ -737,16 +734,21 @@ async function createServer() {
     const address = server.address();
     const boundPort = typeof address === 'object' && address ? address.port : port;
 
+    // eslint-disable-next-line no-console -- startup banner, not an error/warning
     console.log('\n🚀 Origami AI is ready!');
+    // eslint-disable-next-line no-console -- startup banner, not an error/warning
     console.log(`- Local:   http://localhost:${boundPort}`);
+    // eslint-disable-next-line no-console -- startup banner, not an error/warning
     console.log(`- Network: http://0.0.0.0:${boundPort}`);
 
     // Inside a dev container / Codespace this is the *container* port. The editor
     // forwards it to the host and remaps when the host port is taken, so the URL
     // to open in the browser can differ (a common cause of "page not found").
     if (process.env.REMOTE_CONTAINERS || process.env.CODESPACES || process.env.DEVCONTAINER) {
+      // eslint-disable-next-line no-console -- startup banner, not an error/warning
       console.log('  (container port — check the editor\'s PORTS panel for the forwarded host URL)');
     }
+    // eslint-disable-next-line no-console -- startup banner, not an error/warning
     console.log('');
   });
 
@@ -761,6 +763,7 @@ async function createServer() {
 
   // FIX #2: Graceful Shutdown to kill "Ghost" processes
   const handleShutdown = async () => {
+    // eslint-disable-next-line no-console -- shutdown lifecycle banner, not an error/warning
     console.log('\n[Shutdown] Closing server and cleaning up processes...');
     // Stop accepting new connections
     server.close(async () => {
@@ -782,6 +785,7 @@ async function createServer() {
       console.warn('[Shutdown] Forcing exit after grace period.');
       process.exit(0);
     }, forceKillMs).unref();
+    // eslint-disable-next-line no-console -- shutdown lifecycle banner, not an error/warning
     console.log('[Shutdown] Shutdown sequence initiated.');
   };
 

@@ -1,7 +1,5 @@
 import { KokoroTTS } from 'kokoro-js';
 
-const isProd = import.meta.env?.PROD ?? false;
-
 // Types for worker messages
 export type TTSWorkerRequest = 
   | { type: 'init', quantization?: 'q8' | 'q4' }
@@ -64,17 +62,11 @@ async function getModel(quantization: 'q8' | 'q4' = 'q8'): Promise<KokoroTTS> {
           // Use CPU (WASM) for inference — WebGPU causes distorted/static audio
           // due to a known upstream bug in kokoro-js where GPU tensor output is not
           // properly synced back to CPU memory before WAV encoding.
-          if (!isProd) {
-            console.log(`Worker: Initializing KokoroTTS with ${quantization} on CPU (WASM)...`);
-          }
           ctx.postMessage({ type: 'status', message: `Loading model (${quantization})...` });
           ttsModel = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-ONNX', {
               dtype: quantization,
               progress_callback: progressCallback,
           });
-          if (!isProd) {
-            console.log("Worker: KokoroTTS initialized on CPU (WASM)");
-          }
 
           ctx.postMessage({ type: 'init-complete' });
       })();

@@ -68,18 +68,15 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({ onUploadComplete, onOp
   // Listen to OCR events
   useEffect(() => {
     const handleInitStart = () => {
-      console.log('[PDFUploader] OCR initialization started');
       setOcrStatus('initializing');
     };
 
     const handleInitComplete = () => {
-      console.log('[PDFUploader] OCR initialization complete');
       setOcrStatus('ready');
     };
 
     const handlePageStart = (e: Event) => {
       const detail = (e as CustomEvent<OCRProgressEventDetail>).detail;
-      console.log('[PDFUploader] OCR page start:', detail);
       setOcrStatus('processing');
       setOcrCurrentPage(detail.currentPage);
       setOcrTotalPages(detail.totalPages);
@@ -91,9 +88,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({ onUploadComplete, onOp
       setOcrProgress(detail.progress);
     };
 
-    const handlePageComplete = () => {
-      console.log('[PDFUploader] OCR page complete');
-    };
+    const handlePageComplete = () => {};
 
     const handleError = (e: Event) => {
       const detail = (e as CustomEvent<{ error: string }>).detail;
