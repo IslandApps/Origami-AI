@@ -1,11 +1,31 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Layers, BrainCircuit, ArrowRight, Video, Github, Cpu, ExternalLink, Clapperboard, Scale } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { TransitionLink } from './TransitionLink';
+import { OsWarningModal } from './OsWarningModal';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+const OS_WARNING_DISMISSED_KEY = 'hide_os_warning_modal';
+
+// Best-effort, non-Windows detection for the one-time setup warning below.
+// Prefers the modern Client Hints API and falls back to UA sniffing since
+// navigator.platform is deprecated but still the most broadly supported signal.
+function detectNonWindowsOs(): string | null {
+  if (typeof navigator === 'undefined') return null;
+  const uaDataPlatform = (navigator as unknown as { userAgentData?: { platform?: string } }).userAgentData?.platform;
+  const source = (uaDataPlatform || navigator.platform || navigator.userAgent || '').toLowerCase();
+
+  if (!source || source.includes('win')) return null;
+  if (source.includes('mac')) return 'macOS';
+  if (source.includes('cros')) return 'ChromeOS';
+  if (source.includes('android')) return 'Android';
+  if (source.includes('iphone') || source.includes('ipad') || source.includes('ios')) return 'iOS';
+  if (source.includes('linux') || source.includes('x11')) return 'Linux';
+  return 'a non-Windows OS';
 }
 
 interface WelcomeLanderProps {
@@ -13,6 +33,13 @@ interface WelcomeLanderProps {
 }
 
 export const WelcomeLander: React.FC<WelcomeLanderProps> = ({ onContinue }) => {
+  const [detectedOs] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    if (localStorage.getItem(OS_WARNING_DISMISSED_KEY) === 'true') return null;
+    return detectNonWindowsOs();
+  });
+  const [isOsWarningOpen, setIsOsWarningOpen] = useState(detectedOs !== null);
+
   const features = [
     {
       icon: Layers,
@@ -182,6 +209,19 @@ export const WelcomeLander: React.FC<WelcomeLanderProps> = ({ onContinue }) => {
       <p className="mt-6 text-sm text-white/30 text-center max-w-sm">
         By continuing, you agree to run AI models locally on your device.
       </p>
+
+      {detectedOs && (
+        <OsWarningModal
+          isOpen={isOsWarningOpen}
+          osName={detectedOs}
+          onConfirm={(dontShowAgain) => {
+            setIsOsWarningOpen(false);
+            if (dontShowAgain) {
+              localStorage.setItem(OS_WARNING_DISMISSED_KEY, 'true');
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
