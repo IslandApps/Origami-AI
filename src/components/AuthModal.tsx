@@ -3,6 +3,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  sendEmailVerification,
+  signOut,
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import {
@@ -174,13 +176,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
 
       if (mode === 'signin') {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
+        const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+        const isPasswordAccount = credential.user.providerData.some((p) => p.providerId === 'password');
+
+        if (isPasswordAccount && !credential.user.emailVerified) {
+          // Re-send the verification link and keep the account signed out until confirmed.
+          await sendEmailVerification(credential.user);
+          await signOut(auth);
+          turnstileRef.current?.reset();
+          setTurnstileToken(null);
+          setPassword('');
+          setSuccessMessage(
+            "Your email hasn't been verified yet. We've sent a new verification link to your inbox — please confirm it, then sign in again."
+          );
+          return;
+        }
+
         onClose();
         navigate('/account');
       } else {
-        await createUserWithEmailAndPassword(auth, email.trim(), password);
-        onClose();
-        navigate('/account');
+        const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        await sendEmailVerification(credential.user);
+        await signOut(auth);
+        turnstileRef.current?.reset();
+        setTurnstileToken(null);
+        setPassword('');
+        setMode('signin');
+        setSuccessMessage(
+          'Account created! Check your inbox for a verification link, then sign in below to continue.'
+        );
       }
     } catch (err: unknown) {
       console.error('[AuthModal] Form error:', err);

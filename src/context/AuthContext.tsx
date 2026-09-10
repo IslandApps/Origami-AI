@@ -21,10 +21,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      // Password-based accounts must verify their email before the session is
+      // considered active. Re-check via reload() in case verification happened
+      // in another tab since this cached user object was created.
+      const isUnverifiedPasswordAccount =
+        !!currentUser &&
+        !currentUser.emailVerified &&
+        currentUser.providerData.some((p) => p.providerId === 'password');
+
+      if (isUnverifiedPasswordAccount) {
+        try {
+          await currentUser!.reload();
+        } catch {
+          // ignore — fall through and treat as unverified
+        }
+        if (!auth.currentUser || !auth.currentUser.emailVerified) {
+          await signOut(auth);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+      }
+
+      setUser(auth.currentUser);
       setLoading(false);
-      if (currentUser) {
+      if (auth.currentUser) {
         syncPreferencesFromFirebase();
       }
     });
