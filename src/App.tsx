@@ -41,6 +41,7 @@ import { AccountOverviewPage } from './pages/AccountOverviewPage';
 import { useScreenRecorder, type ScreenRecordResult } from './hooks/useScreenRecorder';
 import { usePageMeta } from './hooks/usePageMeta';
 import { PageHeader } from './components/PageHeader';
+import { menuSectionLabelClassName } from './components/HeaderActionsMenu';
 import { useTransitionNavigate } from './components/TransitionLink';
 import { RouteTransition } from './components/RouteTransition';
 import chromeExtensionZip from './assets/extension/chrome-extension.zip?url';
@@ -50,6 +51,11 @@ import { savePdfProjectToCloud, loadPdfProjectFromCloud, guessPdfProjectTitle } 
 import { Cloud } from 'lucide-react';
 import { LibraryPage } from './pages/LibraryPage';
 import { useSearchParams } from 'react-router';
+
+// Remembers which cloud Library entry (and title) the current local draft is linked
+// to, so Auto Save keeps updating the same entry across page reloads instead of
+// creating a new one every session.
+const PDF_LIBRARY_LINK_KEY = 'origami_library_link_pdf';
 
 function MainApp() {
   usePageMeta({
@@ -108,6 +114,13 @@ function MainApp() {
   const [linkedCloudProjectId, setLinkedCloudProjectId] = useState<string | null>(null);
   const [currentProjectTitle, setCurrentProjectTitle] = useState<string | null>(null);
   const pendingLibraryDownloadRef = useRef(false);
+  const skipNextCloudAutoSaveRef = useRef(false);
+  const linkedCloudProjectIdRef = useRef(linkedCloudProjectId);
+  linkedCloudProjectIdRef.current = linkedCloudProjectId;
+  const currentProjectTitleRef = useRef(currentProjectTitle);
+  currentProjectTitleRef.current = currentProjectTitle;
+  const isSavingToCloudRef = useRef(false);
+  isSavingToCloudRef.current = isSavingToCloud;
   const [searchParams, setSearchParams] = useSearchParams();
 
   const handleSaveToLibrary = async () => {
@@ -169,6 +182,7 @@ function MainApp() {
           return;
         }
         skipNextAutoSaveRef.current = true;
+        skipNextCloudAutoSaveRef.current = true;
         setSlides(data.slides.map(enforceTtsEnabled));
         setMusicSettings(data.musicSettings ?? { volume: 0.16 });
         setLinkedCloudProjectId(libraryProjectId);
@@ -583,7 +597,17 @@ function MainApp() {
 
       if (state && state.slides.length > 0) {
         skipNextAutoSaveRef.current = true;
+        skipNextCloudAutoSaveRef.current = true;
         setSlides(state.slides.map(enforceTtsEnabled));
+
+        try {
+          const raw = localStorage.getItem(PDF_LIBRARY_LINK_KEY);
+          const link = raw ? JSON.parse(raw) as { projectId?: string; title?: string } : null;
+          if (link?.projectId) setLinkedCloudProjectId(link.projectId);
+          if (link?.title) setCurrentProjectTitle(link.title);
+        } catch {
+          // Malformed/unavailable localStorage entry — fall back to unlinked.
+        }
       }
 
       // Restore music settings
@@ -624,6 +648,14 @@ function MainApp() {
       setIsResourceModalOpen(true);
     }
   }, [showWelcomeLander, isRestoring, renderer, globalSettings]);
+
+  const handleSetupSkip = () => {
+    setIsResourceModalOpen(false);
+    // Skipping doesn't queue any downloads, but still persists the
+    // acknowledgment so the modal doesn't reprompt every session — resources
+    // will simply be fetched on demand whenever a feature that needs them is used.
+    setSyncedPreference('hide_setup_modal', 'true');
+  };
 
   const handleSetupConfirm = async (_dontShowAgain?: boolean) => {
     setIsResourceModalOpen(false);
@@ -700,6 +732,51 @@ function MainApp() {
 
     return () => clearTimeout(timeoutId);
   }, [slides, isRestoring, musicSettings]);
+
+  // Remember which Library entry the current draft is linked to, so Auto Save
+  // (and a manual re-save) keeps updating the same cloud project across reloads.
+  useEffect(() => {
+    try {
+      if (linkedCloudProjectId) {
+        localStorage.setItem(PDF_LIBRARY_LINK_KEY, JSON.stringify({ projectId: linkedCloudProjectId, title: currentProjectTitle }));
+      } else {
+        localStorage.removeItem(PDF_LIBRARY_LINK_KEY);
+      }
+    } catch {
+      // localStorage unavailable (e.g. private browsing) — auto save still works within the session.
+    }
+  }, [linkedCloudProjectId, currentProjectTitle]);
+
+  // Auto Save to the cloud Library, when enabled in Settings and the user is signed in.
+  // Debounced separately (and longer) than the local IndexedDB autosave above, since this
+  // hits the network and re-uploads any local blob: slide/media/music URLs.
+  useEffect(() => {
+    if (!globalSettings?.autoSaveToLibrary || !user) return;
+    if (isRestoring || slides.length === 0) return;
+
+    if (skipNextCloudAutoSaveRef.current) {
+      skipNextCloudAutoSaveRef.current = false;
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      if (isSavingToCloudRef.current) return; // a manual save is already in flight
+      setIsSavingToCloud(true);
+      try {
+        const projectId = linkedCloudProjectIdRef.current ?? Date.now().toString();
+        const title = currentProjectTitleRef.current ?? guessPdfProjectTitle(slides);
+        const result = await savePdfProjectToCloud(user.uid, projectId, slides, title, musicSettings);
+        setLinkedCloudProjectId(result.projectId);
+        if (!currentProjectTitleRef.current) setCurrentProjectTitle(title);
+      } catch (error) {
+        console.error('Auto Save to Library failed:', error);
+      } finally {
+        setIsSavingToCloud(false);
+      }
+    }, 5000);
+
+    return () => clearTimeout(timeoutId);
+  }, [slides, musicSettings, isRestoring, globalSettings?.autoSaveToLibrary, user]);
 
   useEffect(() => {
     setSyncedPreference('slide_editor_view_mode', slideEditorViewMode);
@@ -1482,17 +1559,9 @@ function MainApp() {
         ) : undefined}
         actionMenuContent={(closeMenu) => (
           <>
-            <a
-              href={chromeExtensionZip}
-              download="chrome-extension.zip"
-              onClick={closeMenu}
-              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white"
-            >
-              <Download className="w-4 h-4" /> Download Chrome Extension
-            </a>
-            {slides.length > 0 && <div className="my-1 h-px bg-white/10" />}
             {slides.length > 0 && (
               <>
+                <div className={menuSectionLabelClassName}>Project</div>
                 <button
                   onClick={() => { handleExportProject(); closeMenu(); }}
                   className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white"
@@ -1505,7 +1574,6 @@ function MainApp() {
                 >
                   <Upload className="w-4 h-4" /> Import Project
                 </button>
-                <div className="my-1 h-px bg-white/10" />
                 <button
                   onClick={() => { handleSaveToLibrary(); closeMenu(); }}
                   disabled={!user || isSavingToCloud}
@@ -1514,34 +1582,25 @@ function MainApp() {
                 >
                   <Cloud className="w-4 h-4" /> {isSavingToCloud ? 'Saving to Library...' : linkedCloudProjectId ? 'Update Library Entry' : 'Save to Library'}
                 </button>
-                <div className="my-1 h-px bg-white/10" />
                 <button
                   onClick={() => { setActiveTab('preview'); closeMenu(); }}
                   className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white"
                 >
                   <Play className="w-4 h-4" /> Preview Video
                 </button>
-                <div className="my-1 h-px bg-white/10" />
-                <button
-                  onClick={() => { handleStartOver(); closeMenu(); }}
-                  className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white"
-                >
-                  <RotateCcw className="w-4 h-4" /> Start Over
-                </button>
+
                 {slides.some((slide) => slide.isSelected) && (
                   <>
-                    {slides.some((slide) => !slide.isSelected) && (
-                      <>
-                        <div className="my-1 h-px bg-white/10" />
-                        <button
-                          onClick={() => { handleSelectAllSlides(); closeMenu(); }}
-                          className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white"
-                        >
-                          <Check className="w-4 h-4" /> Select All ({slides.length})
-                        </button>
-                      </>
-                    )}
                     <div className="my-1 h-px bg-white/10" />
+                    <div className={menuSectionLabelClassName}>Selection</div>
+                    {slides.some((slide) => !slide.isSelected) && (
+                      <button
+                        onClick={() => { handleSelectAllSlides(); closeMenu(); }}
+                        className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+                      >
+                        <Check className="w-4 h-4" /> Select All ({slides.length})
+                      </button>
+                    )}
                     <button
                       onClick={() => { handleDeleteSelected(); closeMenu(); }}
                       className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-bold text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300"
@@ -1550,8 +1609,29 @@ function MainApp() {
                     </button>
                   </>
                 )}
+
+                <div className="my-1 h-px bg-white/10" />
+                <div className={menuSectionLabelClassName}>Danger Zone</div>
+                <button
+                  onClick={() => { handleStartOver(); closeMenu(); }}
+                  className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+                >
+                  <RotateCcw className="w-4 h-4" /> Start Over
+                </button>
+
+                <div className="my-1 h-px bg-white/10" />
               </>
             )}
+
+            <div className={menuSectionLabelClassName}>Resources</div>
+            <a
+              href={chromeExtensionZip}
+              download="chrome-extension.zip"
+              onClick={closeMenu}
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              <Download className="w-4 h-4" /> Download Chrome Extension
+            </a>
           </>
         )}
       />
@@ -1773,6 +1853,7 @@ function MainApp() {
       <RuntimeResourceModal
         isOpen={isResourceModalOpen}
         onConfirm={handleSetupConfirm}
+        onSkip={handleSetupSkip}
       />
 
       <WebGPUInstructionsModal

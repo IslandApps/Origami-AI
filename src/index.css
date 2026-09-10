@@ -23,6 +23,30 @@
   --primary: #00d1ff;
   --secondary: #7000ff;
   --accent: #ff00c7;
+
+  /* Raw forms of --primary consumed directly via var() (not through a Tailwind
+     utility) by components that build hsl()/rgba() strings or need a bare hex
+     fallback, e.g. GlobalSettingsModal's volume-slider gradient and
+     SlideEditor's rail glow. */
+  --branding-primary: 191 100% 50%;
+  --branding-primary-rgb: 0, 209, 255;
+  --branding-primary-hex: #00d1ff;
+}
+
+/* branding-* Tailwind color utilities (bg-branding-primary, text-branding-accent,
+   etc.), used throughout the app's buttons/badges/panels. Unlike the fold-*
+   ramp above, these names ARE referenced as utilities in dozens of components,
+   so they need an actual @theme entry -- without one Tailwind v4 silently
+   drops the unrecognized utility, leaving affected elements with no
+   background/text/border color at all (e.g. a "Save" button only visible on
+   :hover because that hover class happens to be a real Tailwind color). */
+@theme {
+  --color-branding-primary: var(--primary);
+  --color-branding-primary-foreground: #000000;
+  --color-branding-secondary: var(--secondary);
+  --color-branding-accent: var(--accent);
+  --color-branding-dark: var(--bg-dark);
+  --color-branding-surface: var(--bg-surface);
 }
 
 /* Mobile: html is the actual scrolling root on many mobile browsers, so

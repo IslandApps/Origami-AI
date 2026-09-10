@@ -834,7 +834,12 @@ const deriveTitle = (topic: string, firstLine: string): string => {
     return base.charAt(0).toUpperCase() + base.slice(1);
   }
   const fallback = firstLine.replace(/[.!?]+$/, '').trim();
-  return (fallback.length > 60 ? `${fallback.slice(0, 57)}...` : fallback) || 'Untitled Short';
+  if (fallback.length <= 60) return fallback || 'Untitled Short';
+  const truncated = fallback.slice(0, 57);
+  const lastSpace = truncated.lastIndexOf(' ');
+  // Cut at the last whole word rather than mid-word, unless that word boundary
+  // is too far back to leave a meaningful title.
+  return (lastSpace > 30 ? truncated.slice(0, lastSpace) : truncated).trim() + '...';
 };
 
 // --- public API ---------------------------------------------------------------

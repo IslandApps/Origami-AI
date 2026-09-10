@@ -169,9 +169,17 @@ export function useShortsRuntimeSetup(params: {
     ],
   );
 
+  const handleResourceSetupSkip = useCallback(() => {
+    setIsResourceModalOpen(false);
+    // Skipping doesn't queue the WebLLM download, but still persists the
+    // acknowledgment so the modal doesn't reprompt every session.
+    setSyncedPreference('hide_setup_modal', 'true');
+  }, [setIsResourceModalOpen]);
+
   return {
     imageModels,
     videoModels,
     handleResourceSetupConfirm,
+    handleResourceSetupSkip,
   };
 }

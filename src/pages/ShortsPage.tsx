@@ -129,7 +129,7 @@ export const ShortsPage: React.FC = () => {
     fileName,
   } = useShortsRender({ project, projectRef, showAlert, pendingLibraryDownloadRef });
 
-  const { imageModels, videoModels, handleResourceSetupConfirm } = useShortsRuntimeSetup({
+  const { imageModels, videoModels, handleResourceSetupConfirm, handleResourceSetupSkip } = useShortsRuntimeSetup({
     defaultGlobalSettings: DEFAULT_GLOBAL_SETTINGS,
     globalSettings,
     setGlobalSettings,
@@ -153,10 +153,12 @@ export const ShortsPage: React.FC = () => {
 
   const { isSavingToCloud, linkedCloudProjectId, setLinkedCloudProjectId, handleSaveToLibrary } = useShortsCloudSync({
     user,
+    project,
     projectRef,
     setProject,
     setStage,
     pendingLibraryDownloadRef,
+    autoSaveEnabled: globalSettings.autoSaveToLibrary ?? false,
     modal: { showAlert, showConfirm, showPrompt },
   });
 
@@ -733,7 +735,7 @@ export const ShortsPage: React.FC = () => {
         onSelectTrack={handleSelectTrack}
       />
 
-      <RuntimeResourceModal isOpen={isResourceModalOpen} onConfirm={handleResourceSetupConfirm} />
+      <RuntimeResourceModal isOpen={isResourceModalOpen} onConfirm={handleResourceSetupConfirm} onSkip={handleResourceSetupSkip} />
 
       <WebGPUInstructionsModal isOpen={isWebGPUModalOpen} onClose={() => setIsWebGPUModalOpen(false)} />
 

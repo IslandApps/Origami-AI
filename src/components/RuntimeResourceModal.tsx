@@ -4,9 +4,10 @@ import { Volume2, Film, Sparkles, Zap, ArrowRight, Check } from 'lucide-react';
 export interface RuntimeResourceModalProps {
   isOpen: boolean;
   onConfirm: (dontShowAgain?: boolean) => void;
+  onSkip: () => void;
 }
 
-export function RuntimeResourceModal({ isOpen, onConfirm }: RuntimeResourceModalProps) {
+export function RuntimeResourceModal({ isOpen, onConfirm, onSkip }: RuntimeResourceModalProps) {
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [prevOpen, setPrevOpen] = useState(isOpen);
@@ -163,13 +164,22 @@ export function RuntimeResourceModal({ isOpen, onConfirm }: RuntimeResourceModal
             </span>
           </label>
 
-          <button
-            onClick={() => onConfirm(dontShowAgain)}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-[0_0_20px_rgba(34,211,238,0.25)] hover:shadow-[0_0_25px_rgba(34,211,238,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 group cursor-pointer"
-          >
-            <span>Continue</span>
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-          </button>
+          <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+            <button
+              onClick={onSkip}
+              className="text-[11px] text-white/25 hover:text-white/45 transition-colors cursor-pointer underline decoration-dotted underline-offset-2"
+            >
+              Skip for now
+            </button>
+
+            <button
+              onClick={() => onConfirm(dontShowAgain)}
+              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-[0_0_20px_rgba(34,211,238,0.25)] hover:shadow-[0_0_25px_rgba(34,211,238,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 group cursor-pointer"
+            >
+              <span>Continue</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

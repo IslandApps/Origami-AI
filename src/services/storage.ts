@@ -23,6 +23,8 @@ export interface GlobalSettings {
   aiFixScriptSystemPrompt?: string;
   aiFixScriptContext?: string;
   recordingCountdownEnabled?: boolean;
+  /** When true and the user is signed in, PDF and Shorts projects are periodically saved to the cloud Library without a manual "Save to Library" click. Off by default. */
+  autoSaveToLibrary?: boolean;
   openaiEndpoint?: string;
   openaiModel?: string;
   openaiApiKey?: string;

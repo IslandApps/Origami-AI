@@ -36,7 +36,12 @@ async function deleteStoragePrefix(prefix: string): Promise<void> {
 export function guessPdfProjectTitle(slides: SlideData[]): string {
   const firstScript = slides[0]?.script?.trim();
   if (!firstScript) return 'Untitled Presentation';
-  return firstScript.length > 40 ? firstScript.slice(0, 40) + '...' : firstScript;
+  if (firstScript.length <= 40) return firstScript;
+  const truncated = firstScript.slice(0, 40);
+  const lastSpace = truncated.lastIndexOf(' ');
+  // Cut at the last whole word rather than mid-word, unless that word boundary
+  // is too far back to leave a meaningful title.
+  return (lastSpace > 20 ? truncated.slice(0, lastSpace) : truncated).trim() + '...';
 }
 
 export async function savePdfProjectToCloud(

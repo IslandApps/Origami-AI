@@ -13,7 +13,8 @@ interface HeaderActionsMenuProps {
   renderContent?: (closeMenu: () => void) => ReactNode;
 }
 
-const menuItemClassName = 'flex w-full items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors';
+export const menuItemClassName = 'flex w-full items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors';
+export const menuSectionLabelClassName = 'px-4 pb-1 pt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-white/55';
 
 export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
   className = '',
@@ -67,6 +68,7 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
         <div className={`absolute right-0 top-full mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-white/10 bg-[#18181b] py-1 shadow-xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200 origin-top-right z-60 ${menuClassName}`.trim()}>
           {showAppRoutes && (
             <>
+              <div className={menuSectionLabelClassName}>Navigate</div>
               <TransitionNavLink
                 to="/"
                 end
@@ -118,6 +120,7 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
               {user && (
                 <>
                   <div className="my-1 h-px bg-white/10" />
+                  <div className={menuSectionLabelClassName}>Account</div>
                   <TransitionNavLink
                     to="/library"
                     onClick={closeMenu}

@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Upload, Music, Trash2, Settings, Mic, Clock, ChevronRight, Sparkles, Play, Square, Activity, RefreshCw, Cpu, CheckCircle2, Timer, Loader2, ArrowDownCircle } from 'lucide-react';
+import { X, Upload, Music, Trash2, Settings, Mic, Clock, ChevronRight, Sparkles, Play, Square, Activity, RefreshCw, Cpu, CheckCircle2, Timer, Loader2, ArrowDownCircle, Cloud } from 'lucide-react';
 import { AVAILABLE_WEB_LLM_MODELS, initWebLLM, checkWebGPUSupport, webLlmEvents, isWebLLMLoaded, isWebLLMInitializing, getCurrentWebLLMModel, unloadWebLLM, DEFAULT_WEB_LLM_MODEL_ID, getDefaultModelByPrecision } from '../services/webLlmService';
 import { AVAILABLE_VOICES, generateTTS } from '../services/ttsService';
 import { Dropdown } from './Dropdown';
 import type { GlobalSettings } from '../services/storage';
 import { useModal } from '../context/ModalContext';
 import { useNotifications } from '../context/NotificationContext';
+import { useAuth } from '../context/AuthContext';
 
 import type { InitProgressReport } from '@mlc-ai/web-llm';
 import { DEFAULT_SYSTEM_PROMPT } from '../services/prompts';
@@ -35,6 +36,7 @@ export const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
 }) => {
   const { showAlert } = useModal();
   const { refresh: refreshNotifications } = useNotifications();
+  const { user } = useAuth();
   const [isEnabled, setIsEnabled] = useState(currentSettings?.isEnabled ?? false);
   const [voice, setVoice] = useState(currentSettings?.voice ?? AVAILABLE_VOICES[0].id);
   const [delay, setDelay] = useState(currentSettings?.delay ?? 0.5);
@@ -122,6 +124,7 @@ export const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
     currentSettings?.aiFixScriptContext ?? ''
   );
   const [recordingCountdownEnabled, setRecordingCountdownEnabled] = useState(currentSettings?.recordingCountdownEnabled ?? true);
+  const [autoSaveToLibrary, setAutoSaveToLibrary] = useState(currentSettings?.autoSaveToLibrary ?? false);
   const [introFadeInEnabled, setIntroFadeInEnabled] = useState(currentSettings?.introFadeInEnabled ?? true);
   const [introFadeInDurationSec, setIntroFadeInDurationSec] = useState(currentSettings?.introFadeInDurationSec ?? 1);
 
@@ -361,6 +364,7 @@ export const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
       aiFixScriptContext: aiFixScriptContext.trim() || undefined,
       previewMode: 'modal',
       recordingCountdownEnabled,
+      autoSaveToLibrary,
       aspectRatio: currentSettings?.aspectRatio ?? '16:9',
       openaiEndpoint,
       openaiModel,
@@ -672,7 +676,27 @@ export const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
                   </div>
                 </div>
 
-
+                <div className="flex items-center justify-between p-4 rounded-xl bg-black/20 border border-white/10">
+                  <div className="space-y-1">
+                    <div className="text-xs font-bold text-white/40 uppercase tracking-widest flex items-center gap-2">
+                      <Cloud className="w-4 h-4" /> Auto Save to Library
+                    </div>
+                    <p className="text-[10px] text-white/30">
+                      {user
+                        ? 'Automatically saves your PDF and Shorts projects to the Library as you work, without clicking Save.'
+                        : 'Sign in to use this — automatically saves your projects to the Library as you work, without clicking Save.'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] font-bold text-white/40 uppercase">{autoSaveToLibrary ? 'On' : 'Off'}</span>
+                    <button
+                      onClick={() => setAutoSaveToLibrary(!autoSaveToLibrary)}
+                      className={`relative w-10 h-5 rounded-full transition-colors duration-300 ${autoSaveToLibrary ? 'bg-emerald-500' : 'bg-white/10'}`}
+                    >
+                      <div className={`absolute top-1 left-1 w-3 h-3 rounded-full bg-white shadow-lg transform transition-transform duration-300 ${autoSaveToLibrary ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {/* Transition */}
