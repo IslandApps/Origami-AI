@@ -1579,6 +1579,8 @@ function MainApp() {
                 setActiveTab('edit');
                 setEnteredEditorWithoutPdf(true);
               }}
+              isDownloadingResources={isBackgroundDownloadActive}
+              onBlockedByDownload={(actionLabel) => setAppDownloadBlockedAction(actionLabel)}
             />
             {isRestoring && (
               <div className="mt-8 text-center text-white/40 animate-pulse">

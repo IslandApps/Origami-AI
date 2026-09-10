@@ -23,6 +23,10 @@ interface PDFUploaderProps {
   onOpenShorts?: () => void;
   onOpenVoiceStudio?: () => void;
   onOpenConverter?: () => void;
+  /** Whether the one-time setup (TTS/FFmpeg/WebLLM) is still downloading. */
+  isDownloadingResources?: boolean;
+  /** Called instead of launching a feature while resources are still downloading. */
+  onBlockedByDownload?: (actionLabel: string) => void;
 }
 
 interface SecondaryOption {
@@ -42,7 +46,7 @@ interface SecondaryOption {
 // How long the loading splash stays up before the destination app actually opens.
 const LAUNCH_SPLASH_DELAY_MS = 1100;
 
-export const PDFUploader: React.FC<PDFUploaderProps> = ({ onUploadComplete, onOpenAssistant, onOpenSlideEditor, onOpenShorts, onOpenVoiceStudio, onOpenConverter }) => {
+export const PDFUploader: React.FC<PDFUploaderProps> = ({ onUploadComplete, onOpenAssistant, onOpenSlideEditor, onOpenShorts, onOpenVoiceStudio, onOpenConverter, isDownloadingResources, onBlockedByDownload }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCreateSlidesModalOpen, setIsCreateSlidesModalOpen] = useState(false);
@@ -208,6 +212,10 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({ onUploadComplete, onOp
 
   const handleOptionActivate = (opt: SecondaryOption) => {
     if (opt.disabled || launchingOption) return;
+    if (opt.launchApp && isDownloadingResources) {
+      onBlockedByDownload?.(opt.title);
+      return;
+    }
     if (opt.launchApp) {
       setLaunchingOption(opt);
       launchTimeoutRef.current = setTimeout(() => {

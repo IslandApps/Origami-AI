@@ -64,7 +64,7 @@ export const TermsOfService: React.FC = () => {
               </svg>
               <div>
                 <span className="text-white/40 text-xs font-bold uppercase tracking-wider">Effective Date</span>
-                <p className="text-white font-bold">August 16, 2026</p>
+                <p className="text-white font-bold">September 10, 2026</p>
               </div>
             </div>
           </div>
@@ -117,7 +117,9 @@ export const TermsOfService: React.FC = () => {
               <h2 className="text-xl font-black text-white">4) Accounts</h2>
             </div>
             <p className="text-white/70 text-sm leading-relaxed">
-              No account is required to use the Service.
+              No account is required to use the Service's core features. An account is required only if you want to save your projects to the cloud and sync them across devices. Where you create an account, sign-up and sign-in are handled by Firebase Authentication (a Google service), using either an email/password or Google Sign-In, and account creation is protected by Cloudflare Turnstile. See our{' '}
+              <TransitionLink to="/privacy" className="text-branding-secondary hover:text-branding-accent transition-colors font-bold underline">Privacy Policy</TransitionLink>
+              {' '}for details on what account information is collected.
             </p>
           </section>
 
@@ -215,7 +217,7 @@ export const TermsOfService: React.FC = () => {
                 <h2 className="text-xl font-black text-white">9) Third-Party Services</h2>
               </div>
               <p className="text-white/70 text-sm leading-relaxed">
-                The Service may rely on or include third-party services or content (for example, fonts, CDNs, or other dependencies). It also includes optional cloud AI features — such as narration script generation, PDF OCR, video/issue analysis, and the Shorts image/video generator — that, when you enable them, send content to third-party AI providers (by default Google Gemini or another OpenAI-compatible endpoint you or the operator configure, and Pollinations for Shorts). See our <TransitionLink to="/privacy" className="text-branding-secondary hover:text-branding-accent transition-colors font-bold underline">Privacy Policy</TransitionLink> for details on what is sent to each. We are not responsible for third-party services, and your use of them may be governed by their own terms and policies.
+                The Service may rely on or include third-party services or content (for example, fonts, CDNs, Firebase Authentication for accounts, or other dependencies). We also use Umami, a self-hosted analytics tool, to understand aggregate usage of the Service. It also includes optional cloud AI features — such as narration script generation, PDF OCR, video/issue analysis, and the Shorts image/video generator — that, when you enable them, send content to third-party AI providers (by default Google Gemini or another OpenAI-compatible endpoint you or the operator configure, and Pollinations for Shorts). See our <TransitionLink to="/privacy" className="text-branding-secondary hover:text-branding-accent transition-colors font-bold underline">Privacy Policy</TransitionLink> for details on what is sent to each. We are not responsible for third-party services, and your use of them may be governed by their own terms and policies.
               </p>
               <div className="mt-4 p-4 bg-white/5 border border-white/10 rounded-xl">
                 <p className="font-semibold text-amber-400 text-xs uppercase tracking-wider mb-2">Pollinations OAuth Connection — Pricing</p>

@@ -54,7 +54,7 @@ export const PrivacyPolicy: React.FC = () => {
               <Clock className="w-5 h-5 text-branding-accent shrink-0" />
               <div>
                 <span className="text-white/40 text-xs font-bold uppercase tracking-wider">Effective Date</span>
-                <p className="text-white font-bold">August 16, 2026</p>
+                <p className="text-white font-bold">September 10, 2026</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -123,7 +123,7 @@ export const PrivacyPolicy: React.FC = () => {
 
               <div>
                 <h3 className="text-base font-bold text-white mb-3">B. Analytics Data</h3>
-                <p className="mb-3">We do not use third-party analytics tools. The Service is designed to minimize data collection.</p>
+                <p className="mb-3">We use Umami, a privacy-focused analytics tool that we self-host on our own infrastructure at umami.techmitten.com (not a third-party analytics vendor's servers), to understand aggregate usage of the Service (such as page views and session activity, including session replay of on-page interactions). Umami does not track you across other websites. The Service is otherwise designed to minimize data collection.</p>
               </div>
 
               <div>
@@ -169,7 +169,12 @@ export const PrivacyPolicy: React.FC = () => {
               </div>
 
               <div>
-                <h3 className="text-base font-bold text-white mb-3">F. Information You Send Us</h3>
+                <h3 className="text-base font-bold text-white mb-3">F. Account Registration and Authentication</h3>
+                <p>Creating an account is optional and is not required to use Origami's core features. An account is required only if you want to save your projects to the cloud and sync them across devices. If you do create an account, sign-up and sign-in are handled by <strong className="text-white">Firebase Authentication</strong> (a Google service). Depending on how you sign in, this involves your email address and password (stored and verified by Firebase, not by us directly) or, if you use Google Sign-In, basic profile information (such as name, email address, and profile photo) provided by your Google account. Account creation is protected by Cloudflare Turnstile to help prevent automated abuse. We use your account only to authenticate you and to let you save and sync your projects across devices.</p>
+              </div>
+
+              <div>
+                <h3 className="text-base font-bold text-white mb-3">G. Information You Send Us</h3>
                 <p>If you contact us (e.g., by email), we will receive the contents of your message and contact information, and we'll use it to respond.</p>
               </div>
             </div>
@@ -214,6 +219,10 @@ export const PrivacyPolicy: React.FC = () => {
                   <li className="flex items-start gap-2">
                     <span className="text-branding-secondary mt-1">•</span>
                     <span>Infrastructure providers (hosting, monitoring, CDNs)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-branding-secondary mt-1">•</span>
+                    <span>Firebase (Google) — used for account authentication (sign-up/sign-in) and, for authenticated users, optional cloud storage and sync of projects. See Section 2(F).</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-branding-secondary mt-1">•</span>

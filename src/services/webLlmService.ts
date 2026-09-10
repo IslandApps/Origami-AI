@@ -227,6 +227,24 @@ export const checkWebGPUSupport = async (): Promise<{ supported: boolean; hasF16
             return { supported: false, hasF16: false, error: "No WebGPU adapter found. Your GPU might not be compatible or hardware acceleration is disabled." };
         }
 
+        // Chromium can hand back a software ("fallback") adapter — commonly on Linux when
+        // Vulkan/GPU sandboxing isn't fully set up — that satisfies requestAdapter() but runs
+        // every inference step on the CPU instead of the GPU. This is what actually causes
+        // "AI Fix Script never finishes" with high CPU / low GPU usage: generation isn't
+        // hung, it's running an F32 model's matrix math on the CPU, which is far too slow to
+        // finish in a normal session. Reject it up front with an actionable message instead
+        // of letting the user sit through it.
+        const adapterInfo = typeof adapter.requestAdapterInfo === 'function'
+            ? await adapter.requestAdapterInfo().catch(() => null)
+            : (adapter.info ?? null);
+        if (adapterInfo?.isFallbackAdapter) {
+            return {
+                supported: false,
+                hasF16: false,
+                error: "Chromium only exposed a software WebGPU adapter (no real GPU access), so local AI models would run on the CPU and be extremely slow instead of finishing. Enable hardware acceleration: chrome://settings -> System -> \"Use graphics acceleration when available\", then check chrome://gpu to confirm WebGPU reports a hardware adapter (on Linux this usually needs Vulkan drivers installed).",
+            };
+        }
+
         const compatibilityError = getWebLLMCompatibilityError(adapter);
         if (compatibilityError) {
             return { supported: false, hasF16: false, error: compatibilityError };
@@ -270,6 +288,11 @@ const GENERATION_TIMEOUT_MS = 120000;
 // A cold model download is legitimately slow, so the load watchdog measures time since
 // the last progress report rather than total elapsed time.
 const INIT_STALL_TIMEOUT_MS = 90000;
+// GENERATION_TIMEOUT_MS only bounds the handshake that hands back the stream. Once tokens
+// start arriving, `for await` has no timeout of its own — if the worker wedges mid-decode
+// (or a software/CPU-fallback adapter is just too slow, see checkWebGPUSupport) the loop
+// waits forever with no recovery. This bounds the gap between two chunks instead.
+const STREAM_IDLE_TIMEOUT_MS = 30000;
 
 class WebLLMTimeoutError extends Error { }
 
@@ -369,6 +392,19 @@ const withEngineTimeout = async <T>(promise: Promise<T>, ms: number, label: stri
         throw error;
     }
 };
+
+// Re-wraps a token stream so every `next()` step is individually bounded, not just the
+// handshake that produced the stream. A step that times out tears the engine down the same
+// way a handshake timeout does, so a wedged (or hopelessly slow, e.g. CPU-fallback) decode
+// fails loudly instead of leaving "Fixing..." spinning forever.
+async function* withStallTimeout<T>(stream: AsyncIterable<T>, ms: number, label: string): AsyncGenerator<T, void, void> {
+    const iterator = stream[Symbol.asyncIterator]();
+    while (true) {
+        const { value, done } = await withEngineTimeout(iterator.next(), ms, label);
+        if (done) return;
+        yield value as T;
+    }
+}
 
 // Single creation path for the engine so the worker handle is always tracked and never leaked.
 // `isAbandoned` lets a caller that already gave up (stall watchdog, cancel) guarantee the
@@ -626,7 +662,7 @@ export const generateWebLLMChatResponse = async (
         }), GENERATION_TIMEOUT_MS, 'WebLLM generation') as AsyncIterable<ChatCompletionChunk>;
 
         let content = "";
-        for await (const chunk of stream) {
+        for await (const chunk of withStallTimeout(stream, STREAM_IDLE_TIMEOUT_MS, 'WebLLM token stream')) {
             const delta = chunk.choices[0]?.delta?.content;
             if (delta) content += delta;
         }
@@ -678,8 +714,6 @@ export async function* streamWebLLMChatResponse(
             await withEngineTimeout(engine.resetChat(), RESET_CHAT_TIMEOUT_MS, 'WebLLM reset');
         }
 
-        // Only the stream handshake is bounded; the chunk loop is incremental and
-        // self-evidently making progress once it starts yielding.
         const stream = await withEngineTimeout(engine.chat.completions.create({
             messages,
             temperature,
@@ -690,7 +724,7 @@ export async function* streamWebLLMChatResponse(
         let buffer = "";
         let inThinkBlock = false;
 
-        for await (const chunk of stream) {
+        for await (const chunk of withStallTimeout(stream, STREAM_IDLE_TIMEOUT_MS, 'WebLLM token stream')) {
             const delta = chunk.choices[0]?.delta?.content;
             const text = normalizeMessageContent(delta);
             if (!text) continue;
@@ -792,7 +826,7 @@ export const generateWebLLMResponse = async (
         }), GENERATION_TIMEOUT_MS, 'WebLLM generation') as AsyncIterable<ChatCompletionChunk>;
         
         let content = "";
-        for await (const chunk of stream) {
+        for await (const chunk of withStallTimeout(stream, STREAM_IDLE_TIMEOUT_MS, 'WebLLM token stream')) {
             if (signal?.aborted) {
                 // Stop the worker's decode too — breaking out of the stream alone would
                 // leave the worker grinding behind a reply nobody is reading.

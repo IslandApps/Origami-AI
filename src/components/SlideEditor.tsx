@@ -725,7 +725,6 @@ const SortableSlideItem = ({
     await new Promise(resolve => setTimeout(resolve, 0));
 
     try {
-      console.log('[AI Fix] Starting transformation for slide', index);
       let transformed = await transformText({
         apiKey: apiKey || '',
         baseUrl,
@@ -745,7 +744,6 @@ const SortableSlideItem = ({
       // fires routinely, and a second local generation doubles the GPU work for little gain.
       const normalize = (s: string) => s.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
       if (!useWebLLM && normalize(transformed) === normalize(slide.script)) {
-        console.log('[AI Fix] Output was identical to input, retrying once automatically...');
         transformed = await transformText({
           apiKey: apiKey || '',
           baseUrl,
@@ -1876,7 +1874,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
 
   const setupAudioVisualizer = (audio: HTMLAudioElement) => {
     if (!visualizerCanvasRef.current) {
-      console.log('[Visualizer] Canvas not ready');
+      console.warn('[Visualizer] Canvas not ready');
       return;
     }
 
@@ -1895,8 +1893,6 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 128; // Fewer bars for background effect (64 bars)
 
-      console.log('[Visualizer] Setting up audio context and analyser...');
-
       // Connect audio element to analyser
       const source = audioContext.createMediaElementSource(audio);
       source.connect(analyser);
@@ -1905,8 +1901,6 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
       audioContextRef.current = audioContext;
       analyserRef.current = analyser;
       sourceRef.current = source;
-
-      console.log('[Visualizer] Connected, starting visualization...');
 
       // Start visualization
       drawVisualizer();
@@ -1944,7 +1938,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
       setIsMusicPlaying(false);
       stopVisualizer();
     }
-  }, [activeTab]);
+  }, [activeTab, isMusicPlaying]);
 
   const drawVisualizer = () => {
     if (!analyserRef.current || !visualizerCanvasRef.current) return;
@@ -2280,7 +2274,6 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
           // See handleTransform: the identical-output retry is skipped for local models.
           const normalize = (s: string) => s.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
           if (!useWebLLM && normalize(transformed) === normalize(slide.script)) {
-            console.log(`[AI Fix Batch] Output was identical to input for slide ${slideIndex + 1}, retrying once automatically...`);
             transformed = await transformText({
               apiKey: apiKey || '',
               baseUrl,
@@ -2436,7 +2429,11 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
         previewAudioRef.current.currentTime = 0;
       }
     };
-  }, [previewIndex, slides]); // Remove ttsVolume and isPreviewTTSPlaying from dependencies
+    // ttsVolume and isPreviewTTSPlaying are intentionally excluded: including them would
+    // re-run this effect (and its cleanup, which pauses/resets the audio) on every volume
+    // tweak or play/pause toggle. Volume changes are handled by the effect below instead.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewIndex, slides]);
 
   // Update volume when ttsVolume changes
   React.useEffect(() => {
